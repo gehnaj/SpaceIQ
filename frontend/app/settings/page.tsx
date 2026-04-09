@@ -121,8 +121,8 @@ export default function SettingsPage() {
           offlineCritPct: String(data.offline_crit_pct ?? 30),
           idleMinutes: String(data.idle_minutes ?? 1440),
           idleCount: String(data.idle_count ?? 10),
-          microsoftTeamsIntegration: DEFAULT_SETTINGS.microsoftTeamsIntegration,
-          teamsWebhookUrl: DEFAULT_SETTINGS.teamsWebhookUrl,
+          microsoftTeamsIntegration: data.teams_enabled ?? false,
+          teamsWebhookUrl: data.teams_webhook_url ?? "",
         });
       })
       .catch(() => {});
@@ -170,6 +170,8 @@ export default function SettingsPage() {
         offline_crit_pct: parseInt(settings.offlineCritPct) || 30,
         idle_minutes: parseInt(settings.idleMinutes) || 1440,
         idle_count: parseInt(settings.idleCount) || 10,
+        teams_enabled: settings.microsoftTeamsIntegration,
+        teams_webhook_url: settings.teamsWebhookUrl,
       }),
     });
     setHasChanges(false);

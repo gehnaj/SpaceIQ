@@ -11,7 +11,7 @@ Usage:
     --output    "processed/off-15/seat-data.json"
 """
 
-import argparse, json, math, os
+import argparse, json, math, os, urllib.request
 import pandas as pd
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -323,6 +323,76 @@ existing_alerts.extend(new_alerts)
 
 with open(alerts_path, "w") as f:
     json.dump(existing_alerts, f, indent=2)
+
+# ─── Send critical/warning alerts to Microsoft Teams ───────────────────────
+
+teams_enabled = thresholds.get("teams_enabled", False)
+teams_url = thresholds.get("teams_webhook_url", "").strip()
+
+if teams_enabled and teams_url and new_alerts:
+    urgent = [a for a in new_alerts if a["severity"] in ("critical", "warning")]
+    if urgent:
+        severity_emoji = {"critical": "\U0001F534", "warning": "\U0001F7E1"}
+
+        # Build Adaptive Card body
+        body = [
+            {
+                "type": "TextBlock",
+                "size": "medium",
+                "weight": "bolder",
+                "text": f"SpaceIQ Alert — {loc_name}",
+                "wrap": True,
+            },
+            {
+                "type": "TextBlock",
+                "text": f"{len(urgent)} warning/critical alert(s) from data captured {args.date} {args.time}",
+                "isSubtle": True,
+                "spacing": "none",
+                "wrap": True,
+            },
+        ]
+
+        for a in urgent:
+            emoji = severity_emoji.get(a["severity"], "")
+            floor_text = f" — {a['floor']}" if a.get("floor") else ""
+            body.append({"type": "ColumnSet", "separator": True, "spacing": "medium", "columns": [
+                {"type": "Column", "width": "auto", "items": [
+                    {"type": "TextBlock", "text": emoji, "size": "medium"}
+                ]},
+                {"type": "Column", "width": "stretch", "items": [
+                    {"type": "TextBlock", "text": f"**{a['severity'].upper()}**: {a['message']}", "wrap": True, "weight": "bolder", "size": "small"},
+                    {"type": "TextBlock", "text": f"{a['locationName']}{floor_text}", "isSubtle": True, "spacing": "none", "size": "small", "wrap": True},
+                    {"type": "TextBlock", "text": a["detail"], "wrap": True, "size": "small", "spacing": "small"},
+                    {"type": "TextBlock", "text": f"Action: {a['recommendedAction']}", "wrap": True, "size": "small", "isSubtle": True, "spacing": "none"},
+                ]},
+            ]})
+
+        payload = {
+            "type": "message",
+            "attachments": [{
+                "contentType": "application/vnd.microsoft.card.adaptive",
+                "contentUrl": None,
+                "content": {
+                    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                    "type": "AdaptiveCard",
+                    "version": "1.4",
+                    "body": body,
+                },
+            }],
+        }
+
+        try:
+            req = urllib.request.Request(
+                teams_url,
+                data=json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                resp_body = resp.read().decode("utf-8", errors="replace")
+                print(f"Teams — notification sent ({resp.status}: {resp_body[:100]})")
+        except Exception as e:
+            print(f"Teams — failed to send: {e}")
 
 print(f"OK — {len(records)} records written to {args.output}")
 print(f"History — {len(history)} snapshots in {history_path}")

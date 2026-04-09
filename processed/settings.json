@@ -5,5 +5,7 @@
   "offline_warn_pct": 25,
   "offline_crit_pct": 30,
   "idle_minutes": 1440,
-  "idle_count": 10
+  "idle_count": 10,
+  "teams_enabled": true,
+  "teams_webhook_url": "https://defaulta7fdc8c0f5974c079e01344a32000d.20.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/cf872a13f77e41bda8e5c1f83a589f4f/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=F_CTTKb30D9yqvGuEC5Ah3C4L_Eml020hbpwD0QOWYc"
 }
