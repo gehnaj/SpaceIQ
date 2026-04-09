@@ -14,6 +14,7 @@ export async function POST(
   const inventoryPath = path.join(uploadDir, "inventory.xlsx");
   const logonPath = path.join(uploadDir, "logon.xlsx");
   const datePath = path.join(uploadDir, "logon-date.txt");
+  const timePath = path.join(uploadDir, "logon-time.txt");
   const outputPath = path.join(projectRoot, "processed", locationId, "seat-data.json");
   const scriptPath = path.join(projectRoot, "process_location.py");
 
@@ -38,9 +39,17 @@ export async function POST(
     // use default
   }
 
+  // Read time
+  let time = "19:30"; // fallback
+  try {
+    time = (await readFile(timePath, "utf-8")).trim();
+  } catch {
+    // use default
+  }
+
   // Run processing
   try {
-    const cmd = `python "${scriptPath}" --inventory "${inventoryPath}" --logon "${logonPath}" --date "${date}" --location "${locationId}" --output "${outputPath}"`;
+    const cmd = `python "${scriptPath}" --inventory "${inventoryPath}" --logon "${logonPath}" --date "${date}" --time "${time}" --location "${locationId}" --output "${outputPath}"`;
     const result = execSync(cmd, {
       cwd: projectRoot,
       timeout: 60000,

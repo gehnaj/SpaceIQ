@@ -24,14 +24,15 @@ parser.add_argument("--logon", required=True, help="Path to logon view Excel")
 parser.add_argument("--date", required=True, help="Date the logon sheet was captured (YYYY-MM-DD)")
 parser.add_argument("--location", required=True, help="Location ID (e.g. off-15)")
 parser.add_argument("--output", required=True, help="Output JSON path")
+parser.add_argument("--time", default="19:30", help="Time the logon sheet was captured (HH:MM, 24h)")
 parser.add_argument("--timezone", default="Asia/Kolkata", help="Timezone of the logon data")
 args = parser.parse_args()
 
-# ─── Reference time: capture date at 9 AM EST, converted to target tz ────────
+# ─── Reference time: capture date at the specified time ─────────────────────
 
 capture_date = datetime.strptime(args.date, "%Y-%m-%d")
-# Default: 7:30 PM in the target timezone (naive, to compare with Excel timestamps)
-NOW = datetime(capture_date.year, capture_date.month, capture_date.day, 19, 30, 0)
+h, m = (int(x) for x in args.time.split(":"))
+NOW = datetime(capture_date.year, capture_date.month, capture_date.day, h, m, 0)
 
 # ─── Read and merge ──────────────────────────────────────────────────────────
 

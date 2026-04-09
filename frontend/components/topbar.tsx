@@ -1,10 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { RefreshCw, Bell } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { buildings } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 
 interface TopbarProps {
@@ -35,18 +33,6 @@ export default function Topbar({ title, subtitle }: TopbarProps) {
         {subtitle && <p className="text-xs text-muted-foreground truncate">{subtitle}</p>}
       </div>
 
-      {/* Building selector */}
-      <Select defaultValue="b1">
-        <SelectTrigger className="w-36 h-7 text-xs bg-secondary border-border">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {buildings.map(b => (
-            <SelectItem key={b.id} value={b.id} className="text-xs">{b.name}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
       {/* Date & live status */}
       <div className="hidden md:flex items-center gap-2 text-xs text-muted-foreground">
         <span>{new Date().toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</span>
@@ -61,10 +47,6 @@ export default function Topbar({ title, subtitle }: TopbarProps) {
 
       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleRefresh}>
         <RefreshCw className={cn("w-3.5 h-3.5", refreshing && "animate-spin")} />
-      </Button>
-      <Button variant="ghost" size="icon" className="h-7 w-7 relative">
-        <Bell className="w-3.5 h-3.5" />
-        <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-destructive" />
       </Button>
     </header>
   );

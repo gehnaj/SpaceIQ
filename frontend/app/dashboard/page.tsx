@@ -104,13 +104,13 @@ export default function DashboardPage() {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
-      <div className="shrink-0 border-b border-border bg-card/60 px-6 py-4">
+      <div className="shrink-0 border-b border-border bg-card/60 px-6 py-3">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-primary/15 flex items-center justify-center">
-            <Activity className="w-4.5 h-4.5 text-primary" />
+          <div className="w-8 h-8 rounded-lg bg-primary/15 flex items-center justify-center">
+            <Activity className="w-4 h-4 text-primary" />
           </div>
           <div>
-            <h1 className="text-lg font-semibold text-foreground leading-tight">Organization Dashboard</h1>
+            <h1 className="text-base font-semibold text-foreground leading-tight">Organization Dashboard</h1>
             <p className="text-xs text-muted-foreground">Combined stats across all Firstsource locations</p>
           </div>
         </div>

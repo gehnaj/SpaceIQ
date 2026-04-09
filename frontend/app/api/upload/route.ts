@@ -23,11 +23,15 @@ export async function POST(req: NextRequest) {
     const bytes = await file.arrayBuffer();
     await writeFile(filePath, Buffer.from(bytes));
 
-    // If logon data, also save the date metadata
+    // If logon data, also save the date and time metadata
     if (type === "logon") {
       const date = formData.get("date") as string;
+      const time = formData.get("time") as string;
       if (date) {
         await writeFile(path.join(uploadDir, "logon-date.txt"), date);
+      }
+      if (time) {
+        await writeFile(path.join(uploadDir, "logon-time.txt"), time);
       }
     }
 
