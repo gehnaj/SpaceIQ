@@ -382,13 +382,13 @@ export default function OfficeDashboardPage({ params }: { params: Promise<{ id: 
                 { label: "Floors", value: floors.length, icon: Building2, color: "#43A047" },
               ].map(({ label, value, icon: Icon, color }) => (
                 <Card key={label} className="bg-card border-border">
-                  <CardContent className="pt-3 pb-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">{label}</p>
-                        <p className="text-xl font-bold text-foreground leading-none" style={{ color }}>{value}</p>
+                  <CardContent className="pt-3 pb-3 h-full">
+                    <div className="flex justify-between h-full">
+                      <div className="flex flex-col justify-between">
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider leading-tight">{label}</p>
+                        <p className="text-2xl font-bold text-foreground leading-none tabular-nums mt-auto" style={{ color }}>{typeof value === "number" ? value.toLocaleString() : value}</p>
                       </div>
-                      <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: `${color}22` }}>
+                      <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 self-end" style={{ backgroundColor: `${color}22` }}>
                         <Icon className="w-3.5 h-3.5" style={{ color }} />
                       </div>
                     </div>
@@ -431,7 +431,7 @@ export default function OfficeDashboardPage({ params }: { params: Promise<{ id: 
               ].map((s) => (
                 <div key={s.label} className="bg-card border border-border rounded-lg p-3">
                   <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{s.label}</p>
-                  <p className="text-xl font-bold mt-0.5" style={{ color: s.color }}>{s.value}</p>
+                  <p className="text-2xl font-bold mt-0.5 tabular-nums" style={{ color: s.color }}>{typeof s.value === "number" ? s.value.toLocaleString() : s.value}</p>
                 </div>
               ))}
             </div>

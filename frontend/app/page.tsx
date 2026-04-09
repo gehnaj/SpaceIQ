@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   ComposableMap,
@@ -19,6 +19,53 @@ import { officeLocations, type OfficeLocation } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 
 const GEO_URL = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
+
+// ─── Clustering logic ───────────────────────────────────────────────────────
+
+interface MarkerCluster {
+  id: string;
+  offices: OfficeLocation[];
+  lat: number;
+  lng: number;
+  count: number;
+}
+
+function clusterOffices(offices: OfficeLocation[], zoom: number): MarkerCluster[] {
+  // Distance threshold in degrees — shrinks as we zoom in
+  const threshold = 3 / zoom;
+  const used = new Set<string>();
+  const clusters: MarkerCluster[] = [];
+
+  for (const office of offices) {
+    if (used.has(office.id)) continue;
+
+    const group: OfficeLocation[] = [office];
+    used.add(office.id);
+
+    for (const other of offices) {
+      if (used.has(other.id)) continue;
+      const dLat = Math.abs(office.lat - other.lat);
+      const dLng = Math.abs(office.lng - other.lng);
+      if (dLat < threshold && dLng < threshold) {
+        group.push(other);
+        used.add(other.id);
+      }
+    }
+
+    const lat = group.reduce((s, o) => s + o.lat, 0) / group.length;
+    const lng = group.reduce((s, o) => s + o.lng, 0) / group.length;
+
+    clusters.push({
+      id: group.map((o) => o.id).join("+"),
+      offices: group,
+      lat,
+      lng,
+      count: group.length,
+    });
+  }
+
+  return clusters;
+}
 
 const STATUS_COLORS: Record<string, { dot: string; label: string; badge: string }> = {
   open: {
@@ -40,13 +87,21 @@ const STATUS_COLORS: Record<string, { dot: string; label: string; badge: string 
 
 // ─── Office list item ────────────────────────────────────────────────────────
 
+interface LiveStats {
+  totalDesks: number;
+  occupied: number;
+}
+
 function OfficeListItem({
-  office, selected, onSelect,
+  office, selected, onSelect, liveStats,
 }: {
-  office: OfficeLocation; selected: boolean; onSelect: () => void;
+  office: OfficeLocation; selected: boolean; onSelect: () => void; liveStats?: LiveStats;
 }) {
   const st = STATUS_COLORS[office.status];
-  const rate = Math.round((office.occupied / office.totalDesks) * 100);
+  const total = liveStats?.totalDesks ?? office.totalDesks;
+  const occ = liveStats?.occupied ?? office.occupied;
+  const rate = total > 0 ? Math.round((occ / total) * 100) : 0;
+  const hasData = total > 0;
   return (
     <button
       onClick={onSelect}
@@ -64,12 +119,16 @@ function OfficeListItem({
           {office.city}{office.state && office.state !== office.city ? `, ${office.state}` : ""} &middot; {office.country}
         </p>
       </div>
-      <div className="text-right shrink-0">
-        <p className="text-xs font-semibold" style={{
-          color: rate > 85 ? "#E53935" : rate > 60 ? "#2844C4" : "#43A047",
-        }}>{rate}%</p>
-        <p className="text-[9px] text-muted-foreground">occupied</p>
-      </div>
+      {hasData ? (
+        <div className="text-right shrink-0">
+          <p className="text-xs font-semibold" style={{
+            color: rate > 85 ? "#E53935" : rate > 60 ? "#2844C4" : "#43A047",
+          }}>{rate}%</p>
+          <p className="text-[9px] text-muted-foreground">occupied</p>
+        </div>
+      ) : (
+        <span className="text-[9px] text-muted-foreground shrink-0">No data</span>
+      )}
     </button>
   );
 }
@@ -77,11 +136,14 @@ function OfficeListItem({
 // ─── Office detail panel ─────────────────────────────────────────────────────
 
 function OfficeDetailPanel({
-  office, onClose, onViewDashboard,
+  office, onClose, onViewDashboard, liveStats,
 }: {
-  office: OfficeLocation; onClose: () => void; onViewDashboard: () => void;
+  office: OfficeLocation; onClose: () => void; onViewDashboard: () => void; liveStats?: LiveStats;
 }) {
   const st = STATUS_COLORS[office.status];
+  const total = liveStats?.totalDesks ?? office.totalDesks;
+  const occ = liveStats?.occupied ?? office.occupied;
+  const free = total - occ;
 
   return (
     <div className="flex flex-col h-full">
@@ -117,13 +179,13 @@ function OfficeDetailPanel({
 
       <div className="grid grid-cols-3 gap-2 mt-4">
         {[
-          { label: "Total Desks", value: office.totalDesks, icon: LayoutGrid, color: "#2844C4" },
-          { label: "Occupied", value: office.occupied, icon: TrendingUp, color: "#E53935" },
-          { label: "Employees", value: office.employees, icon: Users, color: "#6CB1DB" },
+          { label: "Total Desks", value: total, icon: LayoutGrid, color: "#2844C4" },
+          { label: "Occupied", value: occ, icon: TrendingUp, color: "#E53935" },
+          { label: "Free", value: free, icon: Users, color: "#43A047" },
         ].map(({ label, value, icon: Icon, color }) => (
           <div key={label} className="rounded-lg bg-secondary/60 px-3 py-2.5 text-center">
             <Icon className="w-3.5 h-3.5 mx-auto mb-1" style={{ color }} />
-            <p className="text-base font-bold text-foreground leading-none">{value}</p>
+            <p className="text-base font-bold text-foreground leading-none">{value > 0 ? value.toLocaleString() : "—"}</p>
             <p className="text-[9px] text-muted-foreground mt-0.5">{label}</p>
           </div>
         ))}
@@ -152,32 +214,80 @@ export default function HomePage() {
   const [center, setCenter] = useState<[number, number]>([0, 20]);
   const [hovered, setHovered] = useState<OfficeLocation | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+  const [liveData, setLiveData] = useState<Record<string, LiveStats>>({});
+
+  // Fetch live stats for all locations on mount
+  useEffect(() => {
+    async function fetchLive() {
+      const stats: Record<string, LiveStats> = {};
+      await Promise.all(
+        officeLocations.map(async (office) => {
+          try {
+            const res = await fetch(`/api/data/${office.id}`);
+            if (!res.ok) return;
+            const data = await res.json();
+            const records = Array.isArray(data) ? data : data.records;
+            if (!records || records.length === 0) return;
+            const physical = records.filter((r: Record<string, string>) =>
+              r["Floor"] && r["Floor"] !== "WFH"
+            );
+            stats[office.id] = {
+              totalDesks: physical.length,
+              occupied: physical.filter((r: Record<string, string>) => r["Status"] === "Logged In").length,
+            };
+          } catch { /* no data */ }
+        })
+      );
+      setLiveData(stats);
+    }
+    fetchLive();
+  }, []);
   const [panelOpen, setPanelOpen] = useState(true);
+  const [clusterPicker, setClusterPicker] = useState<MarkerCluster | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
+
+  const clusters = useMemo(() => clusterOffices(officeLocations, zoom), [zoom]);
 
   const handleSelectOffice = useCallback((office: OfficeLocation) => {
     setSelected(office);
     setHovered(null);
+    setClusterPicker(null);
     setCenter([office.lng, office.lat]);
-    setZoom(4);
+    setZoom((z) => Math.max(z, 4));
     setPanelOpen(true);
   }, []);
 
+  const handleClusterClick = useCallback((cluster: MarkerCluster) => {
+    if (cluster.count === 1) {
+      // Single office — select it directly
+      setSelected(cluster.offices[0]);
+      setHovered(null);
+      setClusterPicker(null);
+      setCenter([cluster.lng, cluster.lat]);
+      setZoom((z) => Math.max(z, 4));
+      setPanelOpen(true);
+    } else if (zoom >= 8) {
+      // Already zoomed in enough — show picker
+      setClusterPicker(cluster);
+    } else {
+      // Zoom in to separate them
+      setCenter([cluster.lng, cluster.lat]);
+      setZoom((z) => Math.min(z * 3, 16));
+      setClusterPicker(null);
+    }
+  }, [zoom]);
+
   const handleBack = useCallback(() => {
     setSelected(null);
+    setClusterPicker(null);
     setZoom(1);
     setCenter([0, 20]);
   }, []);
 
-  const handleMarkerMouseEnter = useCallback((office: OfficeLocation, e: React.MouseEvent) => {
-    const rect = mapContainerRef.current?.getBoundingClientRect();
-    if (rect) setTooltipPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-    setHovered(office);
-  }, []);
 
-  const totalDesks = officeLocations.reduce((s, o) => s + o.totalDesks, 0);
-  const totalOccupied = officeLocations.reduce((s, o) => s + o.occupied, 0);
-  const totalEmployees = officeLocations.reduce((s, o) => s + o.employees, 0);
+  const totalDesks = officeLocations.reduce((s, o) => s + (liveData[o.id]?.totalDesks ?? o.totalDesks), 0);
+  const totalOccupied = officeLocations.reduce((s, o) => s + (liveData[o.id]?.occupied ?? o.occupied), 0);
+  const totalFree = totalDesks - totalOccupied;
   const openCount = officeLocations.filter((o) => o.status === "open").length;
 
   return (
@@ -192,8 +302,8 @@ export default function HomePage() {
           {[
             { label: "Offices", value: officeLocations.length, color: "#2844C4" },
             { label: "Open", value: openCount, color: "#43A047" },
-            { label: "Employees", value: totalEmployees.toLocaleString(), color: "#6CB1DB" },
-            { label: "Occupancy", value: `${Math.round((totalOccupied / totalDesks) * 100)}%`, color: "#2844C4" },
+            { label: "Desks", value: totalDesks.toLocaleString(), color: "#6CB1DB" },
+            { label: "Occupancy", value: `${totalDesks > 0 ? Math.round((totalOccupied / totalDesks) * 100) : 0}%`, color: "#2844C4" },
           ].map(({ label, value, color }) => (
             <div key={label} className="flex items-center gap-1.5">
               <span className="text-muted-foreground">{label}</span>
@@ -250,6 +360,7 @@ export default function HomePage() {
                 onMoveEnd={({ zoom: z, coordinates }) => {
                   setZoom(z);
                   setCenter(coordinates as [number, number]);
+                  setClusterPicker(null);
                 }}
               >
                 <Geographies geography={GEO_URL}>
@@ -268,60 +379,74 @@ export default function HomePage() {
                   }
                 </Geographies>
 
-                {officeLocations.map((office) => {
-                  const isSelected = selected?.id === office.id;
-                  const dotColor = STATUS_COLORS[office.status].dot;
+                {clusters.map((cluster) => {
+                  const isSingle = cluster.count === 1;
+                  const office = cluster.offices[0];
+                  const isSelected = isSingle && selected?.id === office.id;
+                  const dotColor = isSingle ? STATUS_COLORS[office.status].dot : "#2844C4";
+
                   return (
                     <Marker
-                      key={office.id}
-                      coordinates={[office.lng, office.lat]}
-                      onClick={() => handleSelectOffice(office)}
-                      onMouseEnter={(e) => handleMarkerMouseEnter(office, e as unknown as React.MouseEvent)}
+                      key={cluster.id}
+                      coordinates={[cluster.lng, cluster.lat]}
+                      onClick={() => handleClusterClick(cluster)}
+                      onMouseEnter={(e) => {
+                        const rect = mapContainerRef.current?.getBoundingClientRect();
+                        if (rect) setTooltipPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+                        if (isSingle) setHovered(office);
+                        else setHovered(null);
+                        setClusterPicker(null);
+                      }}
                       onMouseLeave={() => setHovered(null)}
                       style={{ cursor: "pointer" }}
                     >
-                      {/* Outer glow ring */}
-                      <circle
-                        r={isSelected ? 14 / zoom : 10 / zoom}
-                        fill={dotColor}
-                        fillOpacity={0.08}
-                        stroke="none"
-                      >
-                        <animate attributeName="r" values={`${(isSelected ? 12 : 8) / zoom};${(isSelected ? 16 : 12) / zoom};${(isSelected ? 12 : 8) / zoom}`} dur="3s" repeatCount="indefinite" />
-                        <animate attributeName="fill-opacity" values="0.08;0.02;0.08" dur="3s" repeatCount="indefinite" />
-                      </circle>
-                      {/* Mid glow */}
-                      <circle
-                        r={isSelected ? 8 / zoom : 6 / zoom}
-                        fill={dotColor}
-                        fillOpacity={0.15}
-                        stroke="none"
-                      />
-                      {/* Selection ring */}
-                      {isSelected && (
-                        <circle r={10 / zoom} fill="none" stroke={dotColor} strokeWidth={1 / zoom} opacity={0.5} />
+                      {isSingle ? (
+                        <>
+                          {/* Outer glow ring */}
+                          <circle r={isSelected ? 14 / zoom : 10 / zoom} fill={dotColor} fillOpacity={0.08} stroke="none">
+                            <animate attributeName="r" values={`${(isSelected ? 12 : 8) / zoom};${(isSelected ? 16 : 12) / zoom};${(isSelected ? 12 : 8) / zoom}`} dur="3s" repeatCount="indefinite" />
+                            <animate attributeName="fill-opacity" values="0.08;0.02;0.08" dur="3s" repeatCount="indefinite" />
+                          </circle>
+                          {/* Mid glow */}
+                          <circle r={isSelected ? 8 / zoom : 6 / zoom} fill={dotColor} fillOpacity={0.15} stroke="none" />
+                          {/* Selection ring */}
+                          {isSelected && <circle r={10 / zoom} fill="none" stroke={dotColor} strokeWidth={1 / zoom} opacity={0.5} />}
+                          {/* Core dot */}
+                          <circle r={isSelected ? 4.5 / zoom : 3.5 / zoom} fill={dotColor} stroke="white" strokeWidth={0.7 / zoom} />
+                          {/* Bright center */}
+                          <circle r={1.5 / zoom} fill="white" fillOpacity={0.5} />
+                        </>
+                      ) : (
+                        <>
+                          {/* Cluster glow */}
+                          <circle r={16 / zoom} fill={dotColor} fillOpacity={0.1} stroke="none">
+                            <animate attributeName="r" values={`${14 / zoom};${18 / zoom};${14 / zoom}`} dur="3s" repeatCount="indefinite" />
+                          </circle>
+                          {/* Cluster ring */}
+                          <circle r={10 / zoom} fill={dotColor} fillOpacity={0.2} stroke="none" />
+                          {/* Core */}
+                          <circle r={7 / zoom} fill={dotColor} stroke="white" strokeWidth={0.8 / zoom} />
+                          {/* Count label */}
+                          <text
+                            textAnchor="middle"
+                            dominantBaseline="central"
+                            fill="white"
+                            fontSize={7 / zoom}
+                            fontWeight="bold"
+                            style={{ pointerEvents: "none" }}
+                          >
+                            {cluster.count}
+                          </text>
+                        </>
                       )}
-                      {/* Core dot */}
-                      <circle
-                        r={isSelected ? 4.5 / zoom : 3.5 / zoom}
-                        fill={dotColor}
-                        stroke="white"
-                        strokeWidth={0.7 / zoom}
-                      />
-                      {/* Bright center */}
-                      <circle
-                        r={1.5 / zoom}
-                        fill="white"
-                        fillOpacity={0.5}
-                      />
                     </Marker>
                   );
                 })}
               </ZoomableGroup>
             </ComposableMap>
 
-            {/* Hover tooltip */}
-            {hovered && !selected && (
+            {/* Hover tooltip — single office */}
+            {hovered && !selected && !clusterPicker && (
               <div
                 className="absolute z-20 pointer-events-none bg-white border border-border rounded-lg shadow-xl px-3 py-2 text-xs min-w-[170px] -translate-x-1/2 -translate-y-full"
                 style={{ left: tooltipPos.x, top: tooltipPos.y - 12 }}
@@ -333,6 +458,29 @@ export default function HomePage() {
                   <span className="ml-auto font-medium text-[10px]" style={{ color: STATUS_COLORS[hovered.status].dot }}>
                     {STATUS_COLORS[hovered.status].label}
                   </span>
+                </div>
+              </div>
+            )}
+
+            {/* Cluster picker — multiple offices at same location */}
+            {clusterPicker && (
+              <div
+                className="absolute z-30 bg-white border border-border rounded-lg shadow-xl p-2 text-xs min-w-[200px] -translate-x-1/2 -translate-y-full"
+                style={{ left: tooltipPos.x, top: tooltipPos.y - 12 }}
+              >
+                <p className="font-semibold text-foreground px-2 py-1">{clusterPicker.offices[0].city} — {clusterPicker.count} offices</p>
+                <div className="space-y-0.5 mt-1">
+                  {clusterPicker.offices.map((o) => (
+                    <button
+                      key={o.id}
+                      onClick={() => handleSelectOffice(o)}
+                      className="w-full text-left px-2 py-1.5 rounded-md hover:bg-secondary/60 transition-colors flex items-center gap-2"
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: STATUS_COLORS[o.status].dot }} />
+                      <span className="truncate text-foreground">{o.name}</span>
+                      <ChevronRight className="w-3 h-3 text-muted-foreground ml-auto shrink-0" />
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
@@ -351,6 +499,7 @@ export default function HomePage() {
                   office={selected}
                   onClose={handleBack}
                   onViewDashboard={() => router.push(`/office/${selected.id}`)}
+                  liveStats={liveData[selected.id]}
                 />
               </div>
             ) : (
@@ -369,6 +518,7 @@ export default function HomePage() {
                       office={office}
                       selected={false}
                       onSelect={() => handleSelectOffice(office)}
+                      liveStats={liveData[office.id]}
                     />
                   ))}
                 </div>
