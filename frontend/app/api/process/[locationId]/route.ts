@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { access, readFile } from "fs/promises";
 import { execSync } from "child_process";
 import path from "path";
+import { officeLocations } from "@/lib/mock-data";
 
 export async function POST(
   _req: NextRequest,
@@ -47,9 +48,12 @@ export async function POST(
     // use default
   }
 
+  // Look up location name
+  const locationName = officeLocations.find((o) => o.id === locationId)?.name || locationId;
+
   // Run processing
   try {
-    const cmd = `python "${scriptPath}" --inventory "${inventoryPath}" --logon "${logonPath}" --date "${date}" --time "${time}" --location "${locationId}" --output "${outputPath}"`;
+    const cmd = `python "${scriptPath}" --inventory "${inventoryPath}" --logon "${logonPath}" --date "${date}" --time "${time}" --location "${locationId}" --location-name "${locationName}" --output "${outputPath}"`;
     const result = execSync(cmd, {
       cwd: projectRoot,
       timeout: 60000,

@@ -25,6 +25,7 @@ parser.add_argument("--date", required=True, help="Date the logon sheet was capt
 parser.add_argument("--location", required=True, help="Location ID (e.g. off-15)")
 parser.add_argument("--output", required=True, help="Output JSON path")
 parser.add_argument("--time", default="19:30", help="Time the logon sheet was captured (HH:MM, 24h)")
+parser.add_argument("--location-name", default="", help="Human-readable location name")
 parser.add_argument("--timezone", default="Asia/Kolkata", help="Timezone of the logon data")
 args = parser.parse_args()
 
@@ -198,5 +199,131 @@ history.append(snapshot)
 with open(history_path, "w") as f:
     json.dump(history, f, indent=2)
 
+# ─── Generate alerts ───────────────────────────────────────────────────────
+
+processed_dir = os.path.dirname(os.path.dirname(args.output))  # processed/
+alerts_path = os.path.join(processed_dir, "alerts.json")
+settings_path = os.path.join(processed_dir, "settings.json")
+
+# Read thresholds
+thresholds = {"critical": 95, "standard": 85, "warning": 75,
+              "offline_warn_pct": 20, "offline_crit_pct": 30,
+              "idle_minutes": 1440, "idle_count": 10}
+if os.path.exists(settings_path):
+    with open(settings_path) as f:
+        try:
+            thresholds.update(json.load(f))
+        except json.JSONDecodeError:
+            pass
+
+loc_id = args.location
+loc_name = getattr(args, "location_name", "") or args.location
+ts = datetime.utcnow().isoformat() + "Z"
+new_alerts = []
+
+def make_alert(atype, severity, floor, message, detail, action, metric=None):
+    floor_slug = (floor or "location").replace(" ", "-").lower()
+    aid = f"alert-{loc_id}-{args.date}-{atype}-{floor_slug}"
+    new_alerts.append({
+        "id": aid, "type": atype, "severity": severity,
+        "locationId": loc_id, "locationName": loc_name,
+        "floor": floor, "message": message, "detail": detail,
+        "recommendedAction": action, "createdAt": ts,
+        "captureDate": args.date, "resolved": False,
+        "metric": metric,
+    })
+
+# --- Location-level occupancy ---
+occ = snapshot["occupancyRate"]
+if occ >= thresholds["critical"]:
+    make_alert("occupancy_threshold", "critical", None,
+               f"{loc_name} occupancy at {occ}% — critical",
+               f"Overall occupancy is {occ}% ({snapshot['busy']}/{snapshot['totalDesks']} desks). This exceeds the {thresholds['critical']}% critical threshold.",
+               "Immediately review space allocation. Consider redirecting employees to less crowded locations.", occ)
+elif occ >= thresholds["standard"]:
+    make_alert("occupancy_threshold", "warning", None,
+               f"{loc_name} occupancy at {occ}% — high",
+               f"Overall occupancy is {occ}% ({snapshot['busy']}/{snapshot['totalDesks']} desks). This exceeds the {thresholds['standard']}% standard threshold.",
+               "Monitor closely. Prepare overflow plans if occupancy continues rising.", occ)
+elif occ >= thresholds["warning"]:
+    make_alert("occupancy_threshold", "info", None,
+               f"{loc_name} occupancy at {occ}% — elevated",
+               f"Overall occupancy is {occ}% ({snapshot['busy']}/{snapshot['totalDesks']} desks). Approaching the {thresholds['standard']}% threshold.",
+               "No immediate action required. Continue monitoring.", occ)
+
+# --- Per-floor analysis ---
+for fl in floors_summary:
+    fname = fl["floor"]
+    ft = fl["total"]
+    fb = fl["busy"]
+    fo = fl["occupancy"]
+
+    if ft < 5:
+        continue  # skip very small floors
+
+    # Floor occupancy thresholds
+    if fo >= thresholds["critical"]:
+        make_alert("occupancy_threshold", "critical", fname,
+                   f"{fname} at {fo}% occupancy — critical",
+                   f"{fname} has {fb}/{ft} desks occupied ({fo}%). Exceeds {thresholds['critical']}% critical threshold.",
+                   f"Redirect new arrivals from {fname}. Alert facilities team.", fo)
+    elif fo >= thresholds["standard"]:
+        make_alert("occupancy_threshold", "warning", fname,
+                   f"{fname} at {fo}% occupancy — high",
+                   f"{fname} has {fb}/{ft} desks occupied ({fo}%). Exceeds {thresholds['standard']}% standard threshold.",
+                   f"Monitor {fname}. Prepare overflow if it continues rising.", fo)
+
+    # Zero utilization floor
+    if fo == 0 and ft > 0:
+        make_alert("zone_inactive", "info", fname,
+                   f"{fname} has zero utilization",
+                   f"{fname} has {ft} desks but none are occupied. The entire floor appears inactive.",
+                   f"Check if {fname} is expected to be empty. Verify with local team.", 0)
+
+    # Per-floor offline count
+    fl_offline = sum(1 for r in physical if r["Floor"] == fname and r.get("Status") == "Offline")
+    if ft > 0:
+        offline_pct = round(fl_offline / ft * 100)
+        if offline_pct >= thresholds["offline_crit_pct"]:
+            make_alert("desks_offline", "critical", fname,
+                       f"{fl_offline} desks offline on {fname} ({offline_pct}%)",
+                       f"{fl_offline} of {ft} desks on {fname} are in Offline status. This is {offline_pct}% of the floor.",
+                       f"Investigate network or hardware issues on {fname}. Dispatch IT.", offline_pct)
+        elif offline_pct >= thresholds["offline_warn_pct"]:
+            make_alert("desks_offline", "warning", fname,
+                       f"{fl_offline} desks offline on {fname} ({offline_pct}%)",
+                       f"{fl_offline} of {ft} desks on {fname} are in Offline status.",
+                       f"Monitor {fname} for connectivity issues.", offline_pct)
+
+    # Long idle desks (offline for > 24 hours)
+    fl_idle = sum(1 for r in physical
+                  if r["Floor"] == fname
+                  and r.get("Status") == "Offline"
+                  and r.get("sinceMinutes") is not None
+                  and r["sinceMinutes"] > thresholds["idle_minutes"])
+    if fl_idle >= thresholds["idle_count"]:
+        make_alert("idle_desks", "info", fname,
+                   f"{fl_idle} desks idle 24h+ on {fname}",
+                   f"{fl_idle} desks on {fname} have been offline for more than 24 hours. These may be abandoned or have hardware issues.",
+                   f"Review these desks for possible reassignment or hardware check.", fl_idle)
+
+# --- Write alerts (remove stale alerts for same location+date, then append) ---
+existing_alerts = []
+if os.path.exists(alerts_path):
+    with open(alerts_path) as f:
+        try:
+            existing_alerts = json.load(f)
+        except json.JSONDecodeError:
+            existing_alerts = []
+
+# Remove old alerts for this location+captureDate (idempotent re-processing)
+existing_alerts = [a for a in existing_alerts
+                   if not (a.get("locationId") == loc_id and a.get("captureDate") == args.date)]
+existing_alerts.extend(new_alerts)
+
+with open(alerts_path, "w") as f:
+    json.dump(existing_alerts, f, indent=2)
+
 print(f"OK — {len(records)} records written to {args.output}")
 print(f"History — {len(history)} snapshots in {history_path}")
+print(f"Alerts — {len(new_alerts)} new alerts generated ({len(existing_alerts)} total)")

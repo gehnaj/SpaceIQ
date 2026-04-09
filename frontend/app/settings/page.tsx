@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   MapPin, AlertCircle, Plug, Save, RotateCcw,
-  ChevronDown, Pencil, Trash2, Plus, Search,
+  ChevronDown, Pencil, Trash2, Plus, Search, Zap,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -42,9 +42,17 @@ import Topbar from "@/components/topbar";
 import { officeLocations, type OfficeLocation } from "@/lib/mock-data";
 
 interface SettingsState {
+  // Occupancy thresholds
   occupancyThreshold: string;
   criticalThreshold: string;
   warningThreshold: string;
+  // Offline desk thresholds
+  offlineWarnPct: string;
+  offlineCritPct: string;
+  // Idle desk thresholds
+  idleMinutes: string;
+  idleCount: string;
+  // Integration
   microsoftTeamsIntegration: boolean;
   teamsWebhookUrl: string;
 }
@@ -77,22 +85,48 @@ const emptyForm: LocationFormData = {
   status: "open",
 };
 
+const DEFAULT_SETTINGS: SettingsState = {
+  occupancyThreshold: "85",
+  criticalThreshold: "95",
+  warningThreshold: "75",
+  offlineWarnPct: "20",
+  offlineCritPct: "30",
+  idleMinutes: "1440",
+  idleCount: "10",
+  microsoftTeamsIntegration: false,
+  teamsWebhookUrl: "",
+};
+
 export default function SettingsPage() {
-  const [settings, setSettings] = useState<SettingsState>({
-    occupancyThreshold: "85",
-    criticalThreshold: "95",
-    warningThreshold: "75",
-    microsoftTeamsIntegration: false,
-    teamsWebhookUrl: "",
-  });
+  const [settings, setSettings] = useState<SettingsState>({ ...DEFAULT_SETTINGS });
 
   const [locations, setLocations] = useState<OfficeLocation[]>([...officeLocations]);
   const [hasChanges, setHasChanges] = useState(false);
   const [expandedSections, setExpandedSections] = useState({
     locations: true,
-    occupancy: false,
+    alertRules: false,
     integrations: false,
   });
+
+  // Load persisted settings on mount
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((res) => res.json())
+      .then((data) => {
+        setSettings({
+          occupancyThreshold: String(data.standard ?? 85),
+          criticalThreshold: String(data.critical ?? 95),
+          warningThreshold: String(data.warning ?? 75),
+          offlineWarnPct: String(data.offline_warn_pct ?? 20),
+          offlineCritPct: String(data.offline_crit_pct ?? 30),
+          idleMinutes: String(data.idle_minutes ?? 1440),
+          idleCount: String(data.idle_count ?? 10),
+          microsoftTeamsIntegration: DEFAULT_SETTINGS.microsoftTeamsIntegration,
+          teamsWebhookUrl: DEFAULT_SETTINGS.teamsWebhookUrl,
+        });
+      })
+      .catch(() => {});
+  }, []);
 
   // Location management state
   const [locationSearch, setLocationSearch] = useState("");
@@ -123,22 +157,28 @@ export default function SettingsPage() {
     setHasChanges(true);
   };
 
-  const handleSave = () => {
-    console.log("[SpaceIQ] Saving settings:", settings);
-    console.log("[SpaceIQ] Locations:", locations);
+  const handleSave = async () => {
+    // Persist alert thresholds to processed/settings.json via API
+    await fetch("/api/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        standard: parseInt(settings.occupancyThreshold) || 85,
+        critical: parseInt(settings.criticalThreshold) || 95,
+        warning: parseInt(settings.warningThreshold) || 75,
+        offline_warn_pct: parseInt(settings.offlineWarnPct) || 20,
+        offline_crit_pct: parseInt(settings.offlineCritPct) || 30,
+        idle_minutes: parseInt(settings.idleMinutes) || 1440,
+        idle_count: parseInt(settings.idleCount) || 10,
+      }),
+    });
     setHasChanges(false);
   };
 
   const handleReset = () => {
-    setSettings({
-      occupancyThreshold: "85",
-      criticalThreshold: "95",
-      warningThreshold: "75",
-      microsoftTeamsIntegration: false,
-      teamsWebhookUrl: "",
-    });
+    setSettings({ ...DEFAULT_SETTINGS });
     setLocations([...officeLocations]);
-    setHasChanges(false);
+    setHasChanges(true);
   };
 
   // ── Edit location ──
@@ -500,73 +540,178 @@ export default function SettingsPage() {
           </div>
         </Collapsible>
 
-        {/* ─── Occupancy Rules ────────────────────────────────────────────── */}
-        <Collapsible open={expandedSections.occupancy} onOpenChange={() => toggleSection("occupancy")}>
+        {/* ─── Alert Rules ─────────────────────────────────────────────────── */}
+        <Collapsible open={expandedSections.alertRules} onOpenChange={() => toggleSection("alertRules")}>
           <div className="border border-border rounded-lg bg-card">
             <CollapsibleTrigger className="w-full flex items-center justify-between p-4 hover:bg-secondary/20 transition-colors">
               <div className="flex items-center gap-3">
-                <AlertCircle className="w-4 h-4 text-[oklch(0.7_0.18_85)]" />
+                <Zap className="w-4 h-4 text-[oklch(0.7_0.18_85)]" />
                 <div className="text-left">
-                  <h3 className="text-sm font-semibold text-foreground">Occupancy Rules</h3>
-                  <p className="text-xs text-muted-foreground mt-0.5">Define floor capacity thresholds</p>
+                  <h3 className="text-sm font-semibold text-foreground">Alert Rules</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">Configure thresholds for automated alert generation</p>
                 </div>
               </div>
               <ChevronDown
-                className={`w-4 h-4 text-muted-foreground transition-transform ${expandedSections.occupancy ? "rotate-180" : ""}`}
+                className={`w-4 h-4 text-muted-foreground transition-transform ${expandedSections.alertRules ? "rotate-180" : ""}`}
               />
             </CollapsibleTrigger>
-            <CollapsibleContent className="px-4 pb-4 pt-2 border-t border-border/50 space-y-4">
-              <div className="space-y-3">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs font-semibold text-foreground">Standard Threshold</Label>
-                    <Badge variant="outline" className="text-[10px]">{settings.occupancyThreshold}%</Badge>
+            <CollapsibleContent className="px-4 pb-4 pt-2 border-t border-border/50 space-y-5">
+
+              {/* Occupancy Thresholds */}
+              <div>
+                <p className="text-xs font-semibold text-foreground mb-3 flex items-center gap-1.5">
+                  <AlertCircle className="w-3.5 h-3.5 text-[#DF6014]" /> Occupancy Thresholds
+                </p>
+                <p className="text-[10px] text-muted-foreground mb-3">
+                  Alerts are generated when a location or floor occupancy exceeds these percentages.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-semibold text-foreground">Warning</Label>
+                      <Badge variant="outline" className="text-[10px] border-blue-400/40 text-blue-600 bg-blue-50">{settings.warningThreshold}%</Badge>
+                    </div>
+                    <Input
+                      placeholder="75"
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={settings.warningThreshold}
+                      onChange={(e) => handleInputChange("warningThreshold", e.target.value)}
+                      className="h-8 text-xs bg-secondary border-border"
+                    />
+                    <p className="text-[10px] text-muted-foreground">Info-level alert</p>
                   </div>
-                  <Input
-                    placeholder="85"
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={settings.occupancyThreshold}
-                    onChange={(e) => handleInputChange("occupancyThreshold", e.target.value)}
-                    className="h-8 text-xs bg-secondary border-border"
-                  />
-                  <p className="text-xs text-muted-foreground">Standard occupancy alert level</p>
-                </div>
-                <Separator className="bg-border/50" />
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs font-semibold text-foreground">Warning Threshold</Label>
-                    <Badge variant="outline" className="text-[10px]">{settings.warningThreshold}%</Badge>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-semibold text-foreground">Standard</Label>
+                      <Badge variant="outline" className="text-[10px] border-yellow-400/40 text-yellow-600 bg-yellow-50">{settings.occupancyThreshold}%</Badge>
+                    </div>
+                    <Input
+                      placeholder="85"
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={settings.occupancyThreshold}
+                      onChange={(e) => handleInputChange("occupancyThreshold", e.target.value)}
+                      className="h-8 text-xs bg-secondary border-border"
+                    />
+                    <p className="text-[10px] text-muted-foreground">Warning-level alert</p>
                   </div>
-                  <Input
-                    placeholder="75"
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={settings.warningThreshold}
-                    onChange={(e) => handleInputChange("warningThreshold", e.target.value)}
-                    className="h-8 text-xs bg-secondary border-border"
-                  />
-                  <p className="text-xs text-muted-foreground">Triggers warning-level alerts</p>
-                </div>
-                <Separator className="bg-border/50" />
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs font-semibold text-foreground">Critical Threshold</Label>
-                    <Badge variant="outline" className="text-[10px]">{settings.criticalThreshold}%</Badge>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-semibold text-foreground">Critical</Label>
+                      <Badge variant="outline" className="text-[10px] border-red-400/40 text-red-600 bg-red-50">{settings.criticalThreshold}%</Badge>
+                    </div>
+                    <Input
+                      placeholder="95"
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={settings.criticalThreshold}
+                      onChange={(e) => handleInputChange("criticalThreshold", e.target.value)}
+                      className="h-8 text-xs bg-secondary border-border"
+                    />
+                    <p className="text-[10px] text-muted-foreground">Critical-level alert</p>
                   </div>
-                  <Input
-                    placeholder="95"
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={settings.criticalThreshold}
-                    onChange={(e) => handleInputChange("criticalThreshold", e.target.value)}
-                    className="h-8 text-xs bg-secondary border-border"
-                  />
-                  <p className="text-xs text-muted-foreground">Triggers critical-level alerts</p>
                 </div>
+              </div>
+
+              <Separator className="bg-border/50" />
+
+              {/* Offline Desk Thresholds */}
+              <div>
+                <p className="text-xs font-semibold text-foreground mb-3 flex items-center gap-1.5">
+                  <AlertCircle className="w-3.5 h-3.5 text-[#DF6014]" /> Offline Desk Thresholds
+                </p>
+                <p className="text-[10px] text-muted-foreground mb-3">
+                  Alerts when the percentage of offline desks on a floor exceeds these values.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-semibold text-foreground">Warning Level</Label>
+                      <Badge variant="outline" className="text-[10px] border-yellow-400/40 text-yellow-600 bg-yellow-50">{settings.offlineWarnPct}%</Badge>
+                    </div>
+                    <Input
+                      placeholder="20"
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={settings.offlineWarnPct}
+                      onChange={(e) => handleInputChange("offlineWarnPct", e.target.value)}
+                      className="h-8 text-xs bg-secondary border-border"
+                    />
+                    <p className="text-[10px] text-muted-foreground">% of floor desks offline to trigger warning</p>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-semibold text-foreground">Critical Level</Label>
+                      <Badge variant="outline" className="text-[10px] border-red-400/40 text-red-600 bg-red-50">{settings.offlineCritPct}%</Badge>
+                    </div>
+                    <Input
+                      placeholder="30"
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={settings.offlineCritPct}
+                      onChange={(e) => handleInputChange("offlineCritPct", e.target.value)}
+                      className="h-8 text-xs bg-secondary border-border"
+                    />
+                    <p className="text-[10px] text-muted-foreground">% of floor desks offline to trigger critical</p>
+                  </div>
+                </div>
+              </div>
+
+              <Separator className="bg-border/50" />
+
+              {/* Idle Desk Thresholds */}
+              <div>
+                <p className="text-xs font-semibold text-foreground mb-3 flex items-center gap-1.5">
+                  <AlertCircle className="w-3.5 h-3.5 text-[#DF6014]" /> Idle Desk Detection
+                </p>
+                <p className="text-[10px] text-muted-foreground mb-3">
+                  Alerts when desks have been offline for an extended period, suggesting hardware issues or abandonment.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold text-foreground">Idle Duration (minutes)</Label>
+                    <Input
+                      placeholder="1440"
+                      type="number"
+                      min="60"
+                      value={settings.idleMinutes}
+                      onChange={(e) => handleInputChange("idleMinutes", e.target.value)}
+                      className="h-8 text-xs bg-secondary border-border"
+                    />
+                    <p className="text-[10px] text-muted-foreground">
+                      Minutes a desk must be offline to count as idle (1440 = 24 hours)
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold text-foreground">Minimum Count per Floor</Label>
+                    <Input
+                      placeholder="10"
+                      type="number"
+                      min="1"
+                      value={settings.idleCount}
+                      onChange={(e) => handleInputChange("idleCount", e.target.value)}
+                      className="h-8 text-xs bg-secondary border-border"
+                    />
+                    <p className="text-[10px] text-muted-foreground">
+                      Minimum idle desks on a floor to trigger an alert
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Info note */}
+              <div className="p-3 rounded-lg bg-secondary/40 border border-border/50">
+                <p className="text-[10px] text-muted-foreground leading-relaxed">
+                  These thresholds are applied automatically each time data is processed for a location.
+                  Alerts are generated per-floor and per-location based on these rules.
+                  Changes take effect on the next data upload.
+                </p>
               </div>
             </CollapsibleContent>
           </div>

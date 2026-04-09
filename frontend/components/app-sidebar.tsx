@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -24,13 +24,25 @@ const navItems = [
   { href: "/", icon: Globe, label: "Locations" },
   { href: "/upload", icon: Upload, label: "Upload Data" },
   { href: "/analytics", icon: BarChart3, label: "Analytics" },
-  { href: "/alerts", icon: Bell, label: "Alerts", badge: 4 },
+  { href: "/alerts", icon: Bell, label: "Alerts", hasBadge: true },
   { href: "/settings", icon: Settings, label: "Settings" },
 ];
 
 export default function AppSidebar() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const [alertCount, setAlertCount] = useState(0);
+
+  useEffect(() => {
+    fetch("/api/alerts")
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setAlertCount(data.filter((a: any) => !a.resolved).length);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   return (
     <aside
@@ -84,12 +96,12 @@ export default function AppSidebar() {
             >
               <item.icon className={cn("w-4 h-4 shrink-0", active && "text-[#DF6014]")} />
               {!collapsed && <span className="truncate">{item.label}</span>}
-              {!collapsed && item.badge && (
+              {!collapsed && item.hasBadge && alertCount > 0 && (
                 <Badge className="ml-auto text-[10px] px-1.5 py-0 h-4 bg-[#DF6014] text-white border-0">
-                  {item.badge}
+                  {alertCount}
                 </Badge>
               )}
-              {collapsed && item.badge && (
+              {collapsed && item.hasBadge && alertCount > 0 && (
                 <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-[#DF6014]" />
               )}
             </Link>
