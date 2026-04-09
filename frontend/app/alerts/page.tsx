@@ -373,7 +373,6 @@ export default function AlertsPage() {
 
     const order: Record<AlertSeverity, number> = { critical: 0, warning: 1, info: 2 };
     list.sort((a, b) => {
-      if (a.resolved !== b.resolved) return a.resolved ? 1 : -1;
       if (order[a.severity] !== order[b.severity]) return order[a.severity] - order[b.severity];
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
@@ -406,45 +405,76 @@ export default function AlertsPage() {
       <Topbar title="Alerts" subtitle="Monitor and manage system notifications" />
 
       <div className="flex-1 overflow-y-auto p-6 space-y-5">
-        {/* Stats row */}
+        {/* Stats row — clickable quick filters */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
           {[
             {
-              label: "Total Alerts", value: stats.total,
+              key: "all", label: "Total Alerts", value: stats.total,
               color: "oklch(0.65 0.18 200)", bg: "oklch(0.65 0.18 200 / 0.1)",
+              border: "oklch(0.65 0.18 200 / 0.5)",
               icon: <Bell className="w-4 h-4" />,
             },
             {
-              label: "Critical", value: stats.critical,
+              key: "critical", label: "Critical", value: stats.critical,
               color: "oklch(0.6 0.22 27)", bg: "oklch(0.55 0.22 27 / 0.12)",
+              border: "oklch(0.6 0.22 27 / 0.5)",
               icon: <AlertTriangle className="w-4 h-4" />,
             },
             {
-              label: "Warning", value: stats.warning,
+              key: "warning", label: "Warning", value: stats.warning,
               color: "oklch(0.7 0.18 85)", bg: "oklch(0.7 0.18 85 / 0.12)",
+              border: "oklch(0.7 0.18 85 / 0.5)",
               icon: <AlertCircle className="w-4 h-4" />,
             },
             {
-              label: "Info", value: stats.info,
+              key: "info", label: "Info", value: stats.info,
               color: "oklch(0.65 0.18 200)", bg: "oklch(0.65 0.18 200 / 0.1)",
+              border: "oklch(0.65 0.18 200 / 0.5)",
               icon: <Info className="w-4 h-4" />,
             },
             {
-              label: "Resolved", value: stats.resolved,
+              key: "resolved", label: "Resolved", value: stats.resolved,
               color: "#16a34a", bg: "rgba(22, 163, 74, 0.1)",
+              border: "rgba(22, 163, 74, 0.5)",
               icon: <CheckCircle2 className="w-4 h-4" />,
             },
-          ].map((s) => (
-            <div key={s.label} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card">
-              <div className="flex items-center justify-center w-8 h-8 rounded-md shrink-0" style={{ backgroundColor: s.bg, color: s.color }}>
-                {s.icon}
-              </div>
-              <div className="min-w-0">
-                <p className="text-xl font-bold text-foreground leading-none tabular-nums">{s.value}</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5 leading-none">{s.label}</p>
-              </div>
-            </div>
-          ))}
+          ].map((s) => {
+            const isActive =
+              (s.key === "all" && severityFilter === "all" && !showResolved) ||
+              (s.key === "resolved" && showResolved && severityFilter === "all") ||
+              (s.key !== "all" && s.key !== "resolved" && severityFilter === s.key && !showResolved);
+
+            return (
+              <button
+                key={s.key}
+                onClick={() => {
+                  if (s.key === "all") {
+                    setSeverityFilter("all");
+                    setShowResolved(false);
+                  } else if (s.key === "resolved") {
+                    setSeverityFilter("all");
+                    setShowResolved(true);
+                  } else {
+                    setSeverityFilter(s.key);
+                    setShowResolved(false);
+                  }
+                }}
+                className={cn(
+                  "flex items-center gap-3 p-3 rounded-lg border bg-card text-left transition-all",
+                  isActive ? "ring-1" : "hover:bg-secondary/30"
+                )}
+                style={isActive ? { borderColor: s.border, ringColor: s.border } : undefined}
+              >
+                <div className="flex items-center justify-center w-8 h-8 rounded-md shrink-0" style={{ backgroundColor: s.bg, color: s.color }}>
+                  {s.icon}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xl font-bold text-foreground leading-none tabular-nums">{s.value}</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5 leading-none">{s.label}</p>
+                </div>
+              </button>
+            );
+          })}
         </div>
 
         {/* Filters */}
