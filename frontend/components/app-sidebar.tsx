@@ -2,29 +2,27 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard,
-  Map,
-  Users,
+  Globe,
+  Upload,
   BarChart3,
   Bell,
   Settings,
-  Building2,
   Wifi,
   ChevronLeft,
   ChevronRight,
   Circle,
-  Globe,
+  LayoutDashboard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 
 const navItems = [
-  { href: "/", icon: LayoutDashboard, label: "Dashboard" },
-  { href: "/offices", icon: Globe, label: "Global Offices" },
-  { href: "/floor-maps", icon: Map, label: "Floor Maps" },
-  { href: "/employees", icon: Users, label: "Employees" },
+  { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
+  { href: "/", icon: Globe, label: "Locations" },
+  { href: "/upload", icon: Upload, label: "Upload Data" },
   { href: "/analytics", icon: BarChart3, label: "Analytics" },
   { href: "/alerts", icon: Bell, label: "Alerts", badge: 4 },
   { href: "/settings", icon: Settings, label: "Settings" },
@@ -41,15 +39,29 @@ export default function AppSidebar() {
         collapsed ? "w-14" : "w-56"
       )}
     >
-      {/* Logo */}
-      <div className={cn("flex items-center gap-2.5 px-4 py-4 border-b border-sidebar-border", collapsed && "px-3 justify-center")}>
-        <div className="w-7 h-7 rounded-md bg-primary flex items-center justify-center shrink-0">
-          <Building2 className="w-4 h-4 text-primary-foreground" />
-        </div>
-        {!collapsed && (
-          <div className="min-w-0">
-            <p className="text-[11px] font-bold text-sidebar-foreground/50 uppercase tracking-widest leading-none">Office</p>
-            <p className="text-xs font-semibold text-sidebar-accent-foreground leading-snug truncate">Productivity Monitor</p>
+      {/* Logo + Product name */}
+      <div className={cn(
+        "flex flex-col gap-2 px-3 py-4 border-b border-sidebar-border",
+        collapsed && "items-center"
+      )}>
+        {collapsed ? (
+          <div className="w-8 h-8 rounded-md bg-[#DF6014] flex items-center justify-center shrink-0">
+            <span className="text-white font-bold text-sm">S</span>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between w-full">
+            <p className="text-sm font-bold tracking-wide leading-none">
+              <span className="text-[#DF6014]">Space</span><span className="text-sidebar-accent-foreground">IQ</span>
+            </p>
+            <Image
+              src="/FSL-Logo-light.png"
+              alt="Firstsource"
+              width={100}
+              height={26}
+              className="h-8 w-auto object-contain"
+              priority
+              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+            />
           </div>
         )}
       </div>
@@ -57,7 +69,7 @@ export default function AppSidebar() {
       {/* Nav */}
       <nav className="flex-1 py-3 px-2 flex flex-col gap-0.5 overflow-hidden">
         {navItems.map((item) => {
-          const active = pathname === item.href;
+          const active = item.href === "/" ? pathname === "/" : pathname === item.href || pathname.startsWith(item.href);
           return (
             <Link
               key={item.href}
@@ -70,15 +82,15 @@ export default function AppSidebar() {
                 collapsed && "justify-center px-2"
               )}
             >
-              <item.icon className="w-4 h-4 shrink-0" />
+              <item.icon className={cn("w-4 h-4 shrink-0", active && "text-[#DF6014]")} />
               {!collapsed && <span className="truncate">{item.label}</span>}
               {!collapsed && item.badge && (
-                <Badge className="ml-auto text-[10px] px-1.5 py-0 h-4 bg-destructive text-destructive-foreground">
+                <Badge className="ml-auto text-[10px] px-1.5 py-0 h-4 bg-[#DF6014] text-white border-0">
                   {item.badge}
                 </Badge>
               )}
               {collapsed && item.badge && (
-                <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-destructive" />
+                <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-[#DF6014]" />
               )}
             </Link>
           );
@@ -92,15 +104,15 @@ export default function AppSidebar() {
       )}>
         {!collapsed ? (
           <div className="flex items-center gap-2 px-2 py-2 rounded-md bg-sidebar-accent/50">
-            <Circle className="w-2 h-2 fill-[oklch(0.55_0.18_145)] text-[oklch(0.55_0.18_145)] animate-pulse shrink-0" />
+            <Circle className="w-2 h-2 fill-green-500 text-green-500 animate-pulse shrink-0" />
             <div className="min-w-0">
               <p className="text-[10px] font-medium text-sidebar-foreground/60 uppercase tracking-wider">Live Sync</p>
-              <p className="text-xs font-semibold text-[oklch(0.65_0.18_200)]">Active</p>
+              <p className="text-xs font-semibold text-[#6CB1DB]">Active</p>
             </div>
             <Wifi className="w-3 h-3 text-sidebar-foreground/40 ml-auto shrink-0" />
           </div>
         ) : (
-          <Circle className="w-2 h-2 fill-[oklch(0.55_0.18_145)] text-[oklch(0.55_0.18_145)] animate-pulse" />
+          <Circle className="w-2 h-2 fill-green-500 text-green-500 animate-pulse" />
         )}
       </div>
 

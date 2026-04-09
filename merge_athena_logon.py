@@ -1,16 +1,12 @@
 import pandas as pd
 from datetime import datetime
-from zoneinfo import ZoneInfo
 
 # --- Config ---
 ATHENA_FILE = "data/Athena Inventory - 07 April 2026.xlsx"
 LOGON_FILE = "data/CommonCurrentlyComputerLogonView.xlsx"
 OUTPUT_FILE = "output/Athena_Seat_Utilization.xlsx"
-NOW = (
-    datetime(2026, 4, 8, 9, 0, 0, tzinfo=ZoneInfo("America/New_York"))
-    .astimezone(ZoneInfo("Asia/Kolkata"))
-    .replace(tzinfo=None)
-)
+# 7:30 PM IST on April 8, 2026 (naive, to compare with Excel timestamps)
+NOW = datetime(2026, 4, 8, 19, 30, 0)
 
 # --- Read files ---
 df_athena = pd.read_excel(ATHENA_FILE)

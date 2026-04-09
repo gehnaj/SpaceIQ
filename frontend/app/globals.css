@@ -4,51 +4,69 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* Enterprise dark-first theme — always dark */
-  --background: oklch(0.13 0.005 240);
-  --foreground: oklch(0.93 0.005 240);
-  --card: oklch(0.17 0.006 240);
-  --card-foreground: oklch(0.93 0.005 240);
-  --popover: oklch(0.17 0.006 240);
-  --popover-foreground: oklch(0.93 0.005 240);
-  --primary: oklch(0.65 0.18 200);
-  --primary-foreground: oklch(0.13 0.005 240);
-  --secondary: oklch(0.22 0.007 240);
-  --secondary-foreground: oklch(0.75 0.005 240);
-  --muted: oklch(0.22 0.007 240);
-  --muted-foreground: oklch(0.55 0.008 240);
-  --accent: oklch(0.65 0.18 200);
-  --accent-foreground: oklch(0.13 0.005 240);
-  --destructive: oklch(0.55 0.22 27);
-  --destructive-foreground: oklch(0.93 0.005 240);
-  --border: oklch(0.25 0.007 240);
-  --input: oklch(0.22 0.007 240);
-  --ring: oklch(0.65 0.18 200);
+  /* ─── Firstsource Brand Palette (Light Theme) ──────────────────────────
+     Orange:     #DF6014
+     Dark Blue:  #1E2247
+     Mid Blue:   #113190
+     Bright Blue:#2844C4
+     Light Blue: #6CB1DB
+     Gray:       #ECF1F5
+  ───────────────────────────────────────────────────────────────────────── */
+
+  --background: #F5F7FA;
+  --foreground: #1E2247;
+
+  --card: #FFFFFF;
+  --card-foreground: #1E2247;
+
+  --popover: #FFFFFF;
+  --popover-foreground: #1E2247;
+
+  /* Primary: Firstsource Orange */
+  --primary: #DF6014;
+  --primary-foreground: #FFFFFF;
+
+  --secondary: #ECF1F5;
+  --secondary-foreground: #1E2247;
+
+  --muted: #ECF1F5;
+  --muted-foreground: #5A6486;
+
+  /* Accent: Bright Blue */
+  --accent: #2844C4;
+  --accent-foreground: #FFFFFF;
+
+  --destructive: #E53935;
+  --destructive-foreground: #FFFFFF;
+
+  --border: #D8DFE9;
+  --input: #ECF1F5;
+  --ring: #DF6014;
 
   /* Desk status colors */
-  --desk-occupied: oklch(0.55 0.2 27);
-  --desk-empty: oklch(0.55 0.18 145);
-  --desk-reserved: oklch(0.7 0.18 85);
-  --desk-unavailable: oklch(0.35 0.005 240);
+  --desk-occupied: #E53935;
+  --desk-empty: #43A047;
+  --desk-reserved: #F9A825;
+  --desk-unavailable: #90A4AE;
 
   /* Chart colors */
-  --chart-1: oklch(0.65 0.18 200);
-  --chart-2: oklch(0.55 0.18 145);
-  --chart-3: oklch(0.7 0.18 85);
-  --chart-4: oklch(0.55 0.2 27);
-  --chart-5: oklch(0.6 0.18 275);
+  --chart-1: #2844C4;
+  --chart-2: #DF6014;
+  --chart-3: #6CB1DB;
+  --chart-4: #43A047;
+  --chart-5: #113190;
 
   --radius: 0.5rem;
 
-  /* Sidebar — deeper dark */
-  --sidebar: oklch(0.10 0.005 240);
-  --sidebar-foreground: oklch(0.75 0.005 240);
-  --sidebar-primary: oklch(0.65 0.18 200);
-  --sidebar-primary-foreground: oklch(0.13 0.005 240);
-  --sidebar-accent: oklch(0.18 0.006 240);
-  --sidebar-accent-foreground: oklch(0.93 0.005 240);
-  --sidebar-border: oklch(0.18 0.006 240);
-  --sidebar-ring: oklch(0.65 0.18 200);
+  /* Sidebar: Dark Blue (stays dark for contrast) */
+  --sidebar: #1E2247;
+  --sidebar-foreground: #C0C8E0;
+  --sidebar-primary: #DF6014;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #2A305A;
+  --sidebar-accent-foreground: #ECF1F5;
+  --sidebar-border: #2A305A;
+  --sidebar-ring: #DF6014;
 }
 
 @theme inline {

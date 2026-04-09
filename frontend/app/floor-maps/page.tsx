@@ -29,27 +29,27 @@ import { cn } from "@/lib/utils";
 
 const statusConfig: Record<AthenaDeskStatus, { bg: string; border: string; label: string; pulse?: boolean }> = {
   occupied: {
-    bg: "bg-[oklch(0.55_0.2_27)]/80",
-    border: "border-[oklch(0.55_0.2_27)]",
+    bg: "bg-[#E53935]/80",
+    border: "border-[#E53935]",
     label: "Busy",
     pulse: true,
   },
   recent: {
-    bg: "bg-[oklch(0.7_0.18_85)]/70",
-    border: "border-[oklch(0.7_0.18_85)]",
+    bg: "bg-[#F9A825]/70",
+    border: "border-[#F9A825]",
     label: "Recently Vacated",
   },
   empty: {
-    bg: "bg-[oklch(0.55_0.18_145)]/70",
-    border: "border-[oklch(0.55_0.18_145)]",
+    bg: "bg-[#43A047]/70",
+    border: "border-[#43A047]",
     label: "Free",
   },
 };
 
 const statusColors: Record<AthenaDeskStatus, string> = {
-  occupied: "oklch(0.55 0.2 27)",
-  recent: "oklch(0.7 0.18 85)",
-  empty: "oklch(0.55 0.18 145)",
+  occupied: "#E53935",
+  recent: "#F9A825",
+  empty: "#43A047",
 };
 
 // ─── Desk Tile ───────────────────────────────────────────────────────────────
@@ -344,14 +344,14 @@ function FloorMapsContent() {
         {/* Stats bar */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
           {[
-            { label: "Total Desks", value: stats.total, color: "oklch(0.65 0.18 200)" },
+            { label: "Total Desks", value: stats.total, color: "#2844C4" },
             { label: "Busy", value: stats.occupied, color: statusColors.occupied },
             { label: "Recently Vacated", value: stats.recent, color: statusColors.recent },
             { label: "Free", value: stats.empty, color: statusColors.empty },
             {
               label: "Occupancy",
               value: `${stats.rate}%`,
-              color: stats.rate > 80 ? statusColors.occupied : "oklch(0.65 0.18 200)",
+              color: stats.rate > 80 ? statusColors.occupied : "#2844C4",
             },
           ].map((s) => (
             <div key={s.label} className="bg-card border border-border rounded-lg p-3">

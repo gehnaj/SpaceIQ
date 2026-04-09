@@ -8,8 +8,8 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'Office Productivity Monitor',
-  description: 'Real-time office occupancy and desk-level productivity monitoring dashboard',
+  title: 'SpaceIQ — Firstsource',
+  description: 'Real-time seat utilization and desk-level occupancy monitoring',
 }
 
 export default function RootLayout({

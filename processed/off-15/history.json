@@ -1,0 +1,81 @@
+[
+  {
+    "timestamp": "2026-04-08T14:00:00Z",
+    "captureDate": "2026-04-08",
+    "referenceTime": "2026-04-08T19:30:00",
+    "location": "off-15",
+    "totalDesks": 2006,
+    "busy": 1345,
+    "offline": 258,
+    "free": 403,
+    "occupancyRate": 67.0,
+    "floors": [
+      {
+        "floor": "1st  Floor",
+        "total": 133,
+        "busy": 63,
+        "free": 70,
+        "occupancy": 47
+      },
+      {
+        "floor": "2nd Floor",
+        "total": 421,
+        "busy": 223,
+        "free": 198,
+        "occupancy": 53
+      },
+      {
+        "floor": "3rd Floor",
+        "total": 344,
+        "busy": 218,
+        "free": 126,
+        "occupancy": 63
+      },
+      {
+        "floor": "4th Floor",
+        "total": 457,
+        "busy": 383,
+        "free": 74,
+        "occupancy": 84
+      },
+      {
+        "floor": "5th Floor",
+        "total": 465,
+        "busy": 364,
+        "free": 101,
+        "occupancy": 78
+      },
+      {
+        "floor": "6th Floor",
+        "total": 178,
+        "busy": 88,
+        "free": 90,
+        "occupancy": 49
+      },
+      {
+        "floor": "ground",
+        "total": 8,
+        "busy": 6,
+        "free": 2,
+        "occupancy": 75
+      }
+    ],
+    "assetTypes": [
+      {
+        "type": "AIO",
+        "total": 1384,
+        "busy": 1041
+      },
+      {
+        "type": "Desktop",
+        "total": 599,
+        "busy": 288
+      },
+      {
+        "type": "Laptop",
+        "total": 23,
+        "busy": 16
+      }
+    ]
+  }
+]
