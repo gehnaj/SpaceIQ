@@ -2,16 +2,15 @@
 
 import { useState, useMemo } from "react";
 import {
-  Building2, Layout, AlertCircle, Zap, Plug, Save, RotateCcw,
-  ChevronDown, Check, X
+  MapPin, AlertCircle, Plug, Save, RotateCcw,
+  ChevronDown, Pencil, Trash2, Plus, Search,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -21,116 +20,354 @@ import {
 } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Separator } from "@/components/ui/separator";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import Topbar from "@/components/topbar";
-import { buildings, floors } from "@/lib/mock-data";
+import { officeLocations, type OfficeLocation } from "@/lib/mock-data";
 
 interface SettingsState {
-  buildingName: string;
-  timezone: string;
-  notificationEmail: string;
-  deskNamingFormat: string;
-  hotDeskingEnabled: boolean;
-  maxReservationHours: string;
   occupancyThreshold: string;
   criticalThreshold: string;
   warningThreshold: string;
-  enableAnomalyDetection: boolean;
-  alertCooldown: string;
-  slackIntegration: boolean;
   microsoftTeamsIntegration: boolean;
-  googleCalendarSync: boolean;
+  teamsWebhookUrl: string;
 }
+
+interface LocationFormData {
+  name: string;
+  city: string;
+  state: string;
+  country: string;
+  countryCode: string;
+  address: string;
+  lat: string;
+  lng: string;
+  floors: string;
+  timezone: string;
+  status: "open" | "closed" | "partial";
+}
+
+const emptyForm: LocationFormData = {
+  name: "",
+  city: "",
+  state: "",
+  country: "",
+  countryCode: "",
+  address: "",
+  lat: "",
+  lng: "",
+  floors: "1",
+  timezone: "IST",
+  status: "open",
+};
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<SettingsState>({
-    buildingName: "HQ Tower A",
-    timezone: "America/New_York",
-    notificationEmail: "admin@corp.com",
-    deskNamingFormat: "Floor-Zone-Number",
-    hotDeskingEnabled: true,
-    maxReservationHours: "8",
     occupancyThreshold: "85",
     criticalThreshold: "95",
     warningThreshold: "75",
-    enableAnomalyDetection: true,
-    alertCooldown: "15",
-    slackIntegration: true,
     microsoftTeamsIntegration: false,
-    googleCalendarSync: true,
+    teamsWebhookUrl: "",
   });
 
+  const [locations, setLocations] = useState<OfficeLocation[]>([...officeLocations]);
   const [hasChanges, setHasChanges] = useState(false);
   const [expandedSections, setExpandedSections] = useState({
-    building: true,
-    layout: false,
+    locations: true,
     occupancy: false,
-    alerts: false,
     integrations: false,
   });
 
+  // Location management state
+  const [locationSearch, setLocationSearch] = useState("");
+  const [editingLocation, setEditingLocation] = useState<OfficeLocation | null>(null);
+  const [editForm, setEditForm] = useState<LocationFormData>(emptyForm);
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [addForm, setAddForm] = useState<LocationFormData>(emptyForm);
+  const [deleteTarget, setDeleteTarget] = useState<OfficeLocation | null>(null);
+
+  const filteredLocations = useMemo(() => {
+    if (!locationSearch.trim()) return locations;
+    const q = locationSearch.toLowerCase();
+    return locations.filter(
+      (loc) =>
+        loc.name.toLowerCase().includes(q) ||
+        loc.city.toLowerCase().includes(q) ||
+        loc.country.toLowerCase().includes(q) ||
+        loc.id.toLowerCase().includes(q)
+    );
+  }, [locations, locationSearch]);
+
   const toggleSection = (section: keyof typeof expandedSections) => {
-    setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
+    setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
   };
 
   const handleInputChange = (key: keyof SettingsState, value: string | boolean) => {
-    setSettings(prev => ({ ...prev, [key]: value }));
+    setSettings((prev) => ({ ...prev, [key]: value }));
     setHasChanges(true);
   };
 
   const handleSave = () => {
-    console.log("[v0] Saving settings:", settings);
+    console.log("[SpaceIQ] Saving settings:", settings);
+    console.log("[SpaceIQ] Locations:", locations);
     setHasChanges(false);
   };
 
   const handleReset = () => {
-    console.log("[v0] Resetting settings");
     setSettings({
-      buildingName: "HQ Tower A",
-      timezone: "America/New_York",
-      notificationEmail: "admin@corp.com",
-      deskNamingFormat: "Floor-Zone-Number",
-      hotDeskingEnabled: true,
-      maxReservationHours: "8",
       occupancyThreshold: "85",
       criticalThreshold: "95",
       warningThreshold: "75",
-      enableAnomalyDetection: true,
-      alertCooldown: "15",
-      slackIntegration: true,
       microsoftTeamsIntegration: false,
-      googleCalendarSync: true,
+      teamsWebhookUrl: "",
     });
+    setLocations([...officeLocations]);
     setHasChanges(false);
   };
+
+  // ── Edit location ──
+  const openEditDialog = (loc: OfficeLocation) => {
+    setEditingLocation(loc);
+    setEditForm({
+      name: loc.name,
+      city: loc.city,
+      state: loc.state,
+      country: loc.country,
+      countryCode: loc.countryCode,
+      address: loc.address,
+      lat: String(loc.lat),
+      lng: String(loc.lng),
+      floors: String(loc.floors),
+      timezone: loc.timezone,
+      status: loc.status,
+    });
+  };
+
+  const saveEditLocation = () => {
+    if (!editingLocation) return;
+    setLocations((prev) =>
+      prev.map((loc) =>
+        loc.id === editingLocation.id
+          ? {
+              ...loc,
+              name: editForm.name,
+              city: editForm.city,
+              state: editForm.state,
+              country: editForm.country,
+              countryCode: editForm.countryCode,
+              address: editForm.address,
+              lat: parseFloat(editForm.lat) || loc.lat,
+              lng: parseFloat(editForm.lng) || loc.lng,
+              floors: parseInt(editForm.floors) || loc.floors,
+              timezone: editForm.timezone,
+              status: editForm.status,
+            }
+          : loc
+      )
+    );
+    setEditingLocation(null);
+    setHasChanges(true);
+  };
+
+  // ── Add location ──
+  const saveNewLocation = () => {
+    const id = `off-new-${Date.now()}`;
+    const newLoc: OfficeLocation = {
+      id,
+      name: addForm.name,
+      city: addForm.city,
+      state: addForm.state,
+      country: addForm.country,
+      countryCode: addForm.countryCode,
+      address: addForm.address,
+      lat: parseFloat(addForm.lat) || 0,
+      lng: parseFloat(addForm.lng) || 0,
+      status: addForm.status,
+      totalDesks: 0,
+      occupied: 0,
+      employees: 0,
+      floors: parseInt(addForm.floors) || 1,
+      timezone: addForm.timezone,
+    };
+    setLocations((prev) => [...prev, newLoc]);
+    setAddDialogOpen(false);
+    setAddForm(emptyForm);
+    setHasChanges(true);
+  };
+
+  // ── Delete location ──
+  const confirmDelete = () => {
+    if (!deleteTarget) return;
+    setLocations((prev) => prev.filter((loc) => loc.id !== deleteTarget.id));
+    setDeleteTarget(null);
+    setHasChanges(true);
+  };
+
+  // ── Shared form renderer ──
+  const renderLocationForm = (
+    form: LocationFormData,
+    setForm: (fn: (prev: LocationFormData) => LocationFormData) => void
+  ) => (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label className="text-xs font-semibold">Location Name *</Label>
+          <Input
+            placeholder="e.g., Mumbai – Athena Towers"
+            value={form.name}
+            onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+            className="h-8 text-xs bg-secondary border-border"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label className="text-xs font-semibold">City *</Label>
+          <Input
+            placeholder="e.g., Mumbai"
+            value={form.city}
+            onChange={(e) => setForm((p) => ({ ...p, city: e.target.value }))}
+            className="h-8 text-xs bg-secondary border-border"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label className="text-xs font-semibold">State / Province</Label>
+          <Input
+            placeholder="e.g., Maharashtra"
+            value={form.state}
+            onChange={(e) => setForm((p) => ({ ...p, state: e.target.value }))}
+            className="h-8 text-xs bg-secondary border-border"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label className="text-xs font-semibold">Country *</Label>
+          <Input
+            placeholder="e.g., India"
+            value={form.country}
+            onChange={(e) => setForm((p) => ({ ...p, country: e.target.value }))}
+            className="h-8 text-xs bg-secondary border-border"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label className="text-xs font-semibold">Country Code</Label>
+          <Input
+            placeholder="e.g., IN"
+            value={form.countryCode}
+            onChange={(e) => setForm((p) => ({ ...p, countryCode: e.target.value.toUpperCase() }))}
+            className="h-8 text-xs bg-secondary border-border"
+            maxLength={2}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label className="text-xs font-semibold">Timezone</Label>
+          <Select value={form.timezone} onValueChange={(v) => setForm((p) => ({ ...p, timezone: v }))}>
+            <SelectTrigger className="h-8 text-xs bg-secondary border-border">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="IST" className="text-xs">IST (India)</SelectItem>
+              <SelectItem value="PHT" className="text-xs">PHT (Philippines)</SelectItem>
+              <SelectItem value="GMT" className="text-xs">GMT (UK)</SelectItem>
+              <SelectItem value="EST" className="text-xs">EST (US East)</SelectItem>
+              <SelectItem value="CST" className="text-xs">CST (US Central)</SelectItem>
+              <SelectItem value="PST" className="text-xs">PST (US West)</SelectItem>
+              <SelectItem value="AEST" className="text-xs">AEST (Australia)</SelectItem>
+              <SelectItem value="GST" className="text-xs">GST (UAE)</SelectItem>
+              <SelectItem value="CST-MX" className="text-xs">CST (Mexico)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label className="text-xs font-semibold">Full Address *</Label>
+        <Input
+          placeholder="Full street address"
+          value={form.address}
+          onChange={(e) => setForm((p) => ({ ...p, address: e.target.value }))}
+          className="h-8 text-xs bg-secondary border-border"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="space-y-2">
+          <Label className="text-xs font-semibold">Number of Floors</Label>
+          <Input
+            placeholder="1"
+            type="number"
+            min="1"
+            value={form.floors}
+            onChange={(e) => setForm((p) => ({ ...p, floors: e.target.value }))}
+            className="h-8 text-xs bg-secondary border-border"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label className="text-xs font-semibold">Latitude</Label>
+          <Input
+            placeholder="e.g., 19.1770"
+            value={form.lat}
+            onChange={(e) => setForm((p) => ({ ...p, lat: e.target.value }))}
+            className="h-8 text-xs bg-secondary border-border"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label className="text-xs font-semibold">Longitude</Label>
+          <Input
+            placeholder="e.g., 72.8385"
+            value={form.lng}
+            onChange={(e) => setForm((p) => ({ ...p, lng: e.target.value }))}
+            className="h-8 text-xs bg-secondary border-border"
+          />
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label className="text-xs font-semibold">Status</Label>
+        <Select value={form.status} onValueChange={(v) => setForm((p) => ({ ...p, status: v as LocationFormData["status"] }))}>
+          <SelectTrigger className="h-8 text-xs bg-secondary border-border">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="open" className="text-xs">Open</SelectItem>
+            <SelectItem value="closed" className="text-xs">Closed</SelectItem>
+            <SelectItem value="partial" className="text-xs">Partial</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+  );
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <Topbar title="Settings" subtitle="Configure system preferences and integrations" />
 
       <div className="flex-1 overflow-y-auto p-6 space-y-4">
-        
         {/* Header with Save/Reset */}
         <div className="flex items-center justify-between mb-2">
           <div>
             <h2 className="text-sm font-semibold text-foreground">Configuration</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">Manage your office monitor settings</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Manage your SpaceIQ settings</p>
           </div>
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 text-xs gap-1.5"
-              onClick={handleReset}
-            >
+            <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={handleReset}>
               <RotateCcw className="w-3.5 h-3.5" />
               Reset
             </Button>
-            <Button
-              size="sm"
-              className="h-8 text-xs gap-1.5"
-              onClick={handleSave}
-              disabled={!hasChanges}
-            >
+            <Button size="sm" className="h-8 text-xs gap-1.5" onClick={handleSave} disabled={!hasChanges}>
               <Save className="w-3.5 h-3.5" />
               Save Changes
             </Button>
@@ -139,122 +376,131 @@ export default function SettingsPage() {
 
         <Separator className="bg-border my-4" />
 
-        {/* Building Configuration */}
-        <Collapsible open={expandedSections.building} onOpenChange={() => toggleSection("building")}>
+        {/* ─── Locations Data ─────────────────────────────────────────────── */}
+        <Collapsible open={expandedSections.locations} onOpenChange={() => toggleSection("locations")}>
           <div className="border border-border rounded-lg bg-card">
             <CollapsibleTrigger className="w-full flex items-center justify-between p-4 hover:bg-secondary/20 transition-colors">
               <div className="flex items-center gap-3">
-                <Building2 className="w-4 h-4 text-[oklch(0.65_0.18_200)]" />
+                <MapPin className="w-4 h-4 text-[#DF6014]" />
                 <div className="text-left">
-                  <h3 className="text-sm font-semibold text-foreground">Building Configuration</h3>
-                  <p className="text-xs text-muted-foreground mt-0.5">Location and general settings</p>
+                  <h3 className="text-sm font-semibold text-foreground">Locations Data</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Manage office locations &middot; {locations.length} locations
+                  </p>
                 </div>
               </div>
-              <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${expandedSections.building ? "rotate-180" : ""}`} />
+              <ChevronDown
+                className={`w-4 h-4 text-muted-foreground transition-transform ${expandedSections.locations ? "rotate-180" : ""}`}
+              />
             </CollapsibleTrigger>
-            <CollapsibleContent className="px-4 pb-4 pt-2 border-t border-border/50 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-xs font-semibold text-foreground">Building Name</Label>
+            <CollapsibleContent className="px-4 pb-4 pt-2 border-t border-border/50 space-y-3">
+              {/* Search + Add */}
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                   <Input
-                    placeholder="e.g., HQ Tower A"
-                    value={settings.buildingName}
-                    onChange={e => handleInputChange("buildingName", e.target.value)}
-                    className="h-8 text-xs bg-secondary border-border"
+                    placeholder="Search locations..."
+                    value={locationSearch}
+                    onChange={(e) => setLocationSearch(e.target.value)}
+                    className="h-8 text-xs bg-secondary border-border pl-8"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-xs font-semibold text-foreground">Timezone</Label>
-                  <Select value={settings.timezone} onValueChange={v => handleInputChange("timezone", v)}>
-                    <SelectTrigger className="h-8 text-xs bg-secondary border-border">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="America/New_York" className="text-xs">Eastern Time</SelectItem>
-                      <SelectItem value="America/Chicago" className="text-xs">Central Time</SelectItem>
-                      <SelectItem value="America/Denver" className="text-xs">Mountain Time</SelectItem>
-                      <SelectItem value="America/Los_Angeles" className="text-xs">Pacific Time</SelectItem>
-                      <SelectItem value="Europe/London" className="text-xs">GMT</SelectItem>
-                      <SelectItem value="Europe/Paris" className="text-xs">CET</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs font-semibold text-foreground">Notification Email</Label>
-                  <Input
-                    placeholder="admin@corp.com"
-                    type="email"
-                    value={settings.notificationEmail}
-                    onChange={e => handleInputChange("notificationEmail", e.target.value)}
-                    className="h-8 text-xs bg-secondary border-border"
-                  />
+                <Button
+                  size="sm"
+                  className="h-8 text-xs gap-1.5 bg-[#DF6014] hover:bg-[#c75512] text-white"
+                  onClick={() => {
+                    setAddForm(emptyForm);
+                    setAddDialogOpen(true);
+                  }}
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Add Location
+                </Button>
+              </div>
+
+              {/* Locations table */}
+              <div className="rounded-md border border-border overflow-hidden">
+                <div className="max-h-[420px] overflow-y-auto">
+                  <table className="w-full text-xs">
+                    <thead className="bg-secondary/60 sticky top-0 z-10">
+                      <tr>
+                        <th className="text-left px-3 py-2 font-semibold text-foreground">Name</th>
+                        <th className="text-left px-3 py-2 font-semibold text-foreground hidden md:table-cell">City</th>
+                        <th className="text-left px-3 py-2 font-semibold text-foreground hidden lg:table-cell">Country</th>
+                        <th className="text-center px-3 py-2 font-semibold text-foreground">Floors</th>
+                        <th className="text-center px-3 py-2 font-semibold text-foreground">Desks</th>
+                        <th className="text-center px-3 py-2 font-semibold text-foreground">Status</th>
+                        <th className="text-right px-3 py-2 font-semibold text-foreground">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/50">
+                      {filteredLocations.map((loc) => (
+                        <tr key={loc.id} className="hover:bg-secondary/20 transition-colors">
+                          <td className="px-3 py-2.5">
+                            <p className="font-medium text-foreground truncate max-w-[200px]">{loc.name}</p>
+                            <p className="text-[10px] text-muted-foreground truncate max-w-[200px] md:hidden">{loc.city}, {loc.country}</p>
+                          </td>
+                          <td className="px-3 py-2.5 text-muted-foreground hidden md:table-cell">{loc.city}</td>
+                          <td className="px-3 py-2.5 text-muted-foreground hidden lg:table-cell">
+                            <span className="inline-flex items-center gap-1">
+                              <span className="text-[10px] font-mono bg-secondary px-1 rounded">{loc.countryCode}</span>
+                              {loc.country}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2.5 text-center tabular-nums">{loc.floors}</td>
+                          <td className="px-3 py-2.5 text-center tabular-nums">{loc.totalDesks.toLocaleString()}</td>
+                          <td className="px-3 py-2.5 text-center">
+                            <Badge
+                              variant="outline"
+                              className={`text-[10px] ${
+                                loc.status === "open"
+                                  ? "border-green-500/30 text-green-600 bg-green-50"
+                                  : loc.status === "partial"
+                                  ? "border-yellow-500/30 text-yellow-600 bg-yellow-50"
+                                  : "border-red-500/30 text-red-600 bg-red-50"
+                              }`}
+                            >
+                              {loc.status}
+                            </Badge>
+                          </td>
+                          <td className="px-3 py-2.5 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0"
+                                onClick={() => openEditDialog(loc)}
+                              >
+                                <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0 hover:text-red-600"
+                                onClick={() => setDeleteTarget(loc)}
+                              >
+                                <Trash2 className="w-3.5 h-3.5 text-muted-foreground" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {filteredLocations.length === 0 && (
+                        <tr>
+                          <td colSpan={7} className="px-3 py-8 text-center text-muted-foreground">
+                            No locations found.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </CollapsibleContent>
           </div>
         </Collapsible>
 
-        {/* Layout Settings */}
-        <Collapsible open={expandedSections.layout} onOpenChange={() => toggleSection("layout")}>
-          <div className="border border-border rounded-lg bg-card">
-            <CollapsibleTrigger className="w-full flex items-center justify-between p-4 hover:bg-secondary/20 transition-colors">
-              <div className="flex items-center gap-3">
-                <Layout className="w-4 h-4 text-[oklch(0.55_0.18_145)]" />
-                <div className="text-left">
-                  <h3 className="text-sm font-semibold text-foreground">Layout Settings</h3>
-                  <p className="text-xs text-muted-foreground mt-0.5">Desk naming and hotdesking policy</p>
-                </div>
-              </div>
-              <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${expandedSections.layout ? "rotate-180" : ""}`} />
-            </CollapsibleTrigger>
-            <CollapsibleContent className="px-4 pb-4 pt-2 border-t border-border/50 space-y-4">
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold text-foreground">Desk Naming Format</Label>
-                <Select value={settings.deskNamingFormat} onValueChange={v => handleInputChange("deskNamingFormat", v)}>
-                  <SelectTrigger className="h-8 text-xs bg-secondary border-border">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Floor-Zone-Number" className="text-xs">Floor-Zone-Number (F2-North-01)</SelectItem>
-                    <SelectItem value="Zone-Number" className="text-xs">Zone-Number (North-001)</SelectItem>
-                    <SelectItem value="Numeric-Sequential" className="text-xs">Numeric Sequential (001, 002...)</SelectItem>
-                    <SelectItem value="Alphanumeric" className="text-xs">Alphanumeric (A1, A2, B1...)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/20">
-                  <div>
-                    <p className="text-sm font-medium text-foreground">Enable Hotdesking</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">Allow employees to reserve desks on-demand</p>
-                  </div>
-                  <Switch
-                    checked={settings.hotDeskingEnabled}
-                    onCheckedChange={v => handleInputChange("hotDeskingEnabled", v)}
-                  />
-                </div>
-
-                {settings.hotDeskingEnabled && (
-                  <div className="space-y-2">
-                    <Label className="text-xs font-semibold text-foreground">Max Reservation Duration (hours)</Label>
-                    <Input
-                      placeholder="8"
-                      type="number"
-                      min="1"
-                      max="24"
-                      value={settings.maxReservationHours}
-                      onChange={e => handleInputChange("maxReservationHours", e.target.value)}
-                      className="h-8 text-xs bg-secondary border-border"
-                    />
-                  </div>
-                )}
-              </div>
-            </CollapsibleContent>
-          </div>
-        </Collapsible>
-
-        {/* Occupancy Rules */}
+        {/* ─── Occupancy Rules ────────────────────────────────────────────── */}
         <Collapsible open={expandedSections.occupancy} onOpenChange={() => toggleSection("occupancy")}>
           <div className="border border-border rounded-lg bg-card">
             <CollapsibleTrigger className="w-full flex items-center justify-between p-4 hover:bg-secondary/20 transition-colors">
@@ -265,7 +511,9 @@ export default function SettingsPage() {
                   <p className="text-xs text-muted-foreground mt-0.5">Define floor capacity thresholds</p>
                 </div>
               </div>
-              <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${expandedSections.occupancy ? "rotate-180" : ""}`} />
+              <ChevronDown
+                className={`w-4 h-4 text-muted-foreground transition-transform ${expandedSections.occupancy ? "rotate-180" : ""}`}
+              />
             </CollapsibleTrigger>
             <CollapsibleContent className="px-4 pb-4 pt-2 border-t border-border/50 space-y-4">
               <div className="space-y-3">
@@ -280,14 +528,12 @@ export default function SettingsPage() {
                     min="0"
                     max="100"
                     value={settings.occupancyThreshold}
-                    onChange={e => handleInputChange("occupancyThreshold", e.target.value)}
+                    onChange={(e) => handleInputChange("occupancyThreshold", e.target.value)}
                     className="h-8 text-xs bg-secondary border-border"
                   />
                   <p className="text-xs text-muted-foreground">Standard occupancy alert level</p>
                 </div>
-
                 <Separator className="bg-border/50" />
-
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label className="text-xs font-semibold text-foreground">Warning Threshold</Label>
@@ -299,14 +545,12 @@ export default function SettingsPage() {
                     min="0"
                     max="100"
                     value={settings.warningThreshold}
-                    onChange={e => handleInputChange("warningThreshold", e.target.value)}
+                    onChange={(e) => handleInputChange("warningThreshold", e.target.value)}
                     className="h-8 text-xs bg-secondary border-border"
                   />
                   <p className="text-xs text-muted-foreground">Triggers warning-level alerts</p>
                 </div>
-
                 <Separator className="bg-border/50" />
-
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label className="text-xs font-semibold text-foreground">Critical Threshold</Label>
@@ -318,7 +562,7 @@ export default function SettingsPage() {
                     min="0"
                     max="100"
                     value={settings.criticalThreshold}
-                    onChange={e => handleInputChange("criticalThreshold", e.target.value)}
+                    onChange={(e) => handleInputChange("criticalThreshold", e.target.value)}
                     className="h-8 text-xs bg-secondary border-border"
                   />
                   <p className="text-xs text-muted-foreground">Triggers critical-level alerts</p>
@@ -328,53 +572,7 @@ export default function SettingsPage() {
           </div>
         </Collapsible>
 
-        {/* Alert Thresholds */}
-        <Collapsible open={expandedSections.alerts} onOpenChange={() => toggleSection("alerts")}>
-          <div className="border border-border rounded-lg bg-card">
-            <CollapsibleTrigger className="w-full flex items-center justify-between p-4 hover:bg-secondary/20 transition-colors">
-              <div className="flex items-center gap-3">
-                <Zap className="w-4 h-4 text-[oklch(0.55_0.2_27)]" />
-                <div className="text-left">
-                  <h3 className="text-sm font-semibold text-foreground">Alert Thresholds</h3>
-                  <p className="text-xs text-muted-foreground mt-0.5">Configure alert sensitivity and behavior</p>
-                </div>
-              </div>
-              <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${expandedSections.alerts ? "rotate-180" : ""}`} />
-            </CollapsibleTrigger>
-            <CollapsibleContent className="px-4 pb-4 pt-2 border-t border-border/50 space-y-4">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/20">
-                  <div>
-                    <p className="text-sm font-medium text-foreground">Enable Anomaly Detection</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">AI-powered detection of unusual patterns</p>
-                  </div>
-                  <Switch
-                    checked={settings.enableAnomalyDetection}
-                    onCheckedChange={v => handleInputChange("enableAnomalyDetection", v)}
-                  />
-                </div>
-
-                <Separator className="bg-border/50" />
-
-                <div className="space-y-2">
-                  <Label className="text-xs font-semibold text-foreground">Alert Cooldown Period (minutes)</Label>
-                  <Input
-                    placeholder="15"
-                    type="number"
-                    min="1"
-                    max="60"
-                    value={settings.alertCooldown}
-                    onChange={e => handleInputChange("alertCooldown", e.target.value)}
-                    className="h-8 text-xs bg-secondary border-border"
-                  />
-                  <p className="text-xs text-muted-foreground">Minimum time between duplicate alerts</p>
-                </div>
-              </div>
-            </CollapsibleContent>
-          </div>
-        </Collapsible>
-
-        {/* Integrations */}
+        {/* ─── Integrations ───────────────────────────────────────────────── */}
         <Collapsible open={expandedSections.integrations} onOpenChange={() => toggleSection("integrations")}>
           <div className="border border-border rounded-lg bg-card">
             <CollapsibleTrigger className="w-full flex items-center justify-between p-4 hover:bg-secondary/20 transition-colors">
@@ -385,81 +583,130 @@ export default function SettingsPage() {
                   <p className="text-xs text-muted-foreground mt-0.5">Connect external tools and services</p>
                 </div>
               </div>
-              <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${expandedSections.integrations ? "rotate-180" : ""}`} />
+              <ChevronDown
+                className={`w-4 h-4 text-muted-foreground transition-transform ${expandedSections.integrations ? "rotate-180" : ""}`}
+              />
             </CollapsibleTrigger>
             <CollapsibleContent className="px-4 pb-4 pt-2 border-t border-border/50 space-y-3">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/20">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-[oklch(0.4_0.2_280_/_0.3)] flex items-center justify-center">
-                      <span className="text-xs font-bold text-[oklch(0.6_0.2_280)]">S</span>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-foreground">Slack</p>
-                      <p className="text-xs text-muted-foreground">Send alerts to Slack channels</p>
-                    </div>
+              <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/20">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-[oklch(0.5_0.15_240_/_0.3)] flex items-center justify-center">
+                    <span className="text-xs font-bold text-[oklch(0.65_0.18_200)]">MT</span>
                   </div>
-                  <Switch
-                    checked={settings.slackIntegration}
-                    onCheckedChange={v => handleInputChange("slackIntegration", v)}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/20">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-[oklch(0.5_0.15_240_/_0.3)] flex items-center justify-center">
-                      <span className="text-xs font-bold text-[oklch(0.65_0.18_200)]">MT</span>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-foreground">Microsoft Teams</p>
-                      <p className="text-xs text-muted-foreground">Send alerts to Teams channels</p>
-                    </div>
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Microsoft Teams</p>
+                    <p className="text-xs text-muted-foreground">Send occupancy alerts to Teams channels</p>
                   </div>
-                  <Switch
-                    checked={settings.microsoftTeamsIntegration}
-                    onCheckedChange={v => handleInputChange("microsoftTeamsIntegration", v)}
-                  />
                 </div>
-
-                <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/20">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-[oklch(0.65_0.2_30_/_0.3)] flex items-center justify-center">
-                      <span className="text-xs font-bold text-[oklch(0.65_0.22_30)]">GC</span>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-foreground">Google Calendar</p>
-                      <p className="text-xs text-muted-foreground">Sync desk availability with calendars</p>
-                    </div>
-                  </div>
-                  <Switch
-                    checked={settings.googleCalendarSync}
-                    onCheckedChange={v => handleInputChange("googleCalendarSync", v)}
-                  />
-                </div>
+                <Switch
+                  checked={settings.microsoftTeamsIntegration}
+                  onCheckedChange={(v) => handleInputChange("microsoftTeamsIntegration", v)}
+                />
               </div>
 
-              <Separator className="bg-border/50" />
-
-              <div className="p-3 rounded-lg bg-[oklch(0.65_0.18_200_/_0.1)] border border-[oklch(0.65_0.18_200_/_0.2)]">
-                <p className="text-xs text-[oklch(0.55_0.08_200)] leading-relaxed">
-                  More integrations coming soon: Asana, Linear, Jira, and custom webhooks.
-                </p>
-              </div>
+              {settings.microsoftTeamsIntegration && (
+                <div className="space-y-2 pl-11">
+                  <Label className="text-xs font-semibold text-foreground">Webhook URL</Label>
+                  <Input
+                    placeholder="https://outlook.office.com/webhook/..."
+                    value={settings.teamsWebhookUrl}
+                    onChange={(e) => handleInputChange("teamsWebhookUrl", e.target.value)}
+                    className="h-8 text-xs bg-secondary border-border"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Paste your Teams incoming webhook URL to receive alerts
+                  </p>
+                </div>
+              )}
             </CollapsibleContent>
           </div>
         </Collapsible>
 
         <Separator className="bg-border my-4" />
 
-        {/* Info section */}
         <Card className="bg-secondary/30 border-border">
           <CardContent className="pt-4 pb-4">
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Settings are saved automatically after you click "Save Changes". For support or advanced configuration options, contact your system administrator.
+              Settings are saved automatically after you click &quot;Save Changes&quot;. For support or advanced
+              configuration options, contact your system administrator.
             </p>
           </CardContent>
         </Card>
       </div>
+
+      {/* ─── Edit Location Dialog ─────────────────────────────────────────── */}
+      <Dialog open={!!editingLocation} onOpenChange={(open) => !open && setEditingLocation(null)}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-sm">Edit Location</DialogTitle>
+            <DialogDescription className="text-xs">
+              Update details for {editingLocation?.name}
+            </DialogDescription>
+          </DialogHeader>
+          {renderLocationForm(editForm, setEditForm)}
+          <DialogFooter className="gap-2">
+            <Button variant="outline" size="sm" className="text-xs" onClick={() => setEditingLocation(null)}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              className="text-xs bg-[#DF6014] hover:bg-[#c75512] text-white"
+              onClick={saveEditLocation}
+              disabled={!editForm.name.trim() || !editForm.city.trim()}
+            >
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── Add Location Dialog ──────────────────────────────────────────── */}
+      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-sm">Add New Location</DialogTitle>
+            <DialogDescription className="text-xs">
+              Enter the details for the new office location
+            </DialogDescription>
+          </DialogHeader>
+          {renderLocationForm(addForm, setAddForm)}
+          <DialogFooter className="gap-2">
+            <Button variant="outline" size="sm" className="text-xs" onClick={() => setAddDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              className="text-xs bg-[#DF6014] hover:bg-[#c75512] text-white"
+              onClick={saveNewLocation}
+              disabled={!addForm.name.trim() || !addForm.city.trim() || !addForm.country.trim()}
+            >
+              Add Location
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── Delete Confirmation ──────────────────────────────────────────── */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-sm">Delete Location</AlertDialogTitle>
+            <AlertDialogDescription className="text-xs">
+              Are you sure you want to delete <span className="font-semibold text-foreground">{deleteTarget?.name}</span>?
+              This action cannot be undone. All associated data for this location will be removed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="text-xs h-8">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="text-xs h-8 bg-red-600 hover:bg-red-700 text-white"
+              onClick={confirmDelete}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
