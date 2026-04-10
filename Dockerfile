@@ -16,7 +16,7 @@ RUN cd frontend && npm ci --legacy-peer-deps
 
 # Copy everything and build
 COPY . .
-RUN cd frontend && npm run build
+RUN echo "cache-bust-v8" && cd frontend && npm run build
 
 # Standalone needs static + public copied in
 RUN cp -r frontend/public frontend/.next/standalone/frontend/public
