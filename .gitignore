@@ -12,7 +12,5 @@ frontend/.vercel/
 .DS_Store
 Thumbs.db
 
-# Data
-# data/
-# output/
-EOF
+# Uploads (user data, recreated at runtime)
+uploads/
