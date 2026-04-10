@@ -1,0 +1,9 @@
+venv/
+frontend/node_modules/
+frontend/.next/
+.git/
+*.pyc
+__pycache__/
+uploads/
+.DS_Store
+Thumbs.db
