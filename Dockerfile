@@ -30,5 +30,4 @@ RUN mkdir -p uploads processed
 EXPOSE 3000
 
 # ── Start ────────────────────────────────────────────────────────────────────
-WORKDIR /app
-CMD ["sh", "-c", "cd frontend && npm start -- --hostname 0.0.0.0"]
+CMD ["sh", "-c", "cd /app/frontend && npm start -- --hostname 0.0.0.0 --port 3000"]
