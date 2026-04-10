@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   ArrowLeft, Building2, Users, LayoutGrid, TrendingUp,
   MonitorSmartphone, ZoomIn, ZoomOut, Search, Monitor,
-  User, Clock, Cpu, Wifi, WifiOff, Loader2, Upload,
+  User, Clock, Cpu, Wifi, WifiOff, Loader2, Upload, Map,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/sheet";
 import { officeLocations } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
+import { FloorPlanView, hasFloorPlan } from "@/components/floor-plan-view";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -248,6 +249,7 @@ export default function OfficeDashboardPage({ params }: { params: Promise<{ id: 
   const [selectedFloor, setSelectedFloor] = useState<string>("");
   const [scale, setScale] = useState(1);
   const [selectedDesk, setSelectedDesk] = useState<DeskData | null>(null);
+  const [viewMode, setViewMode] = useState<"grid" | "floorplan">("grid");
   const [filters, setFilters] = useState({ status: "all", assetType: "all", search: "" });
 
   // Fetch processed data for this location
@@ -295,6 +297,9 @@ export default function OfficeDashboardPage({ params }: { params: Promise<{ id: 
   }, [desks, selectedFloor, filters]);
 
   const allFloorDesks = useMemo(() => desks.filter((d) => d.floorId === selectedFloor), [desks, selectedFloor]);
+
+  const currentFloor = floors.find((f) => f.id === selectedFloor);
+  const floorPlanAvailable = currentFloor ? hasFloorPlan(id, currentFloor.rawKey) : false;
 
   const assetTypes = useMemo(() => {
     const types = [...new Set(desks.map((d) => d.assetType).filter(Boolean))] as string[];
@@ -470,53 +475,96 @@ export default function OfficeDashboardPage({ params }: { params: Promise<{ id: 
                 </SelectContent>
               </Select>
               <div className="ml-auto flex gap-2">
-                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setScale((s) => Math.min(s + 0.25, 2.5))}>
-                  <ZoomIn className="w-3.5 h-3.5" />
-                </Button>
-                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setScale((s) => Math.max(s - 0.25, 0.4))}>
-                  <ZoomOut className="w-3.5 h-3.5" />
-                </Button>
+                {/* View mode toggle */}
+                {floorPlanAvailable && (
+                  <div className="flex border border-border rounded-md overflow-hidden mr-1">
+                    <button
+                      className={cn(
+                        "h-8 px-2.5 flex items-center gap-1.5 text-xs transition-colors",
+                        viewMode === "grid"
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-secondary/50 text-muted-foreground hover:text-foreground"
+                      )}
+                      onClick={() => setViewMode("grid")}
+                    >
+                      <LayoutGrid className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Grid</span>
+                    </button>
+                    <button
+                      className={cn(
+                        "h-8 px-2.5 flex items-center gap-1.5 text-xs transition-colors",
+                        viewMode === "floorplan"
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-secondary/50 text-muted-foreground hover:text-foreground"
+                      )}
+                      onClick={() => setViewMode("floorplan")}
+                    >
+                      <Map className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Floor Plan</span>
+                    </button>
+                  </div>
+                )}
+                {viewMode === "grid" && (
+                  <>
+                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setScale((s) => Math.min(s + 0.25, 2.5))}>
+                      <ZoomIn className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setScale((s) => Math.max(s - 0.25, 0.4))}>
+                      <ZoomOut className="w-3.5 h-3.5" />
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
 
-            {/* Legend */}
-            <div className="flex gap-5 flex-wrap">
-              {(Object.entries(statusConfig) as [DeskStatus, typeof statusConfig.occupied][]).map(([key, cfg]) => (
-                <div key={key} className="flex items-center gap-1.5">
-                  <div className={`w-3 h-3 rounded-sm border ${cfg.bg} ${cfg.border}`} />
-                  <span className="text-[10px] text-muted-foreground">{cfg.label}</span>
+            {/* Floor Plan View */}
+            {viewMode === "floorplan" && floorPlanAvailable && currentFloor ? (
+              <FloorPlanView
+                officeId={id}
+                floorRawKey={currentFloor.rawKey}
+              />
+            ) : (
+              <>
+                {/* Legend */}
+                <div className="flex gap-5 flex-wrap">
+                  {(Object.entries(statusConfig) as [DeskStatus, typeof statusConfig.occupied][]).map(([key, cfg]) => (
+                    <div key={key} className="flex items-center gap-1.5">
+                      <div className={`w-3 h-3 rounded-sm border ${cfg.bg} ${cfg.border}`} />
+                      <span className="text-[10px] text-muted-foreground">{cfg.label}</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
 
-            {/* Desk grid */}
-            <div className="relative bg-secondary/20 rounded-xl border border-border p-6 overflow-auto">
-              <div className="flex gap-3 mb-4">
-                <div className="flex-1 h-7 rounded-md bg-secondary/60 border border-border flex items-center justify-center text-[9px] text-muted-foreground uppercase tracking-wider">Entrance</div>
-                <div className="w-12 h-7 rounded-md bg-secondary/60 border border-border flex items-center justify-center text-[9px] text-muted-foreground">Elev.</div>
-                <div className="flex-1 h-7 rounded-md bg-secondary/60 border border-border flex items-center justify-center text-[9px] text-muted-foreground uppercase tracking-wider">Meeting Rooms</div>
-              </div>
+                {/* Desk grid */}
+                <div className="relative bg-secondary/20 rounded-xl border border-border p-6 overflow-auto">
+                  <div className="flex gap-3 mb-4">
+                    <div className="flex-1 h-7 rounded-md bg-secondary/60 border border-border flex items-center justify-center text-[9px] text-muted-foreground uppercase tracking-wider">Entrance</div>
+                    <div className="w-12 h-7 rounded-md bg-secondary/60 border border-border flex items-center justify-center text-[9px] text-muted-foreground">Elev.</div>
+                    <div className="flex-1 h-7 rounded-md bg-secondary/60 border border-border flex items-center justify-center text-[9px] text-muted-foreground uppercase tracking-wider">Meeting Rooms</div>
+                  </div>
 
-              <div className="grid" style={{ gridTemplateColumns: `repeat(${GRID_COLS}, auto)`, gap: Math.max(2, Math.round(3 * scale)) }}>
-                {allFloorDesks.map((desk) => {
-                  const visible = floorDesks.find((d) => d.id === desk.id);
-                  return visible ? (
-                    <DeskTile key={desk.id} desk={desk} scale={scale} onClick={setSelectedDesk} />
-                  ) : (
-                    <div
-                      key={desk.id}
-                      className="rounded-sm opacity-15 bg-secondary border border-border"
-                      style={{ width: Math.max(16, Math.round(24 * scale)), height: Math.max(16, Math.round(24 * scale)) }}
-                    />
-                  );
-                })}
-              </div>
+                  <div className="grid" style={{ gridTemplateColumns: `repeat(${GRID_COLS}, auto)`, gap: Math.max(2, Math.round(3 * scale)) }}>
+                    {allFloorDesks.map((desk) => {
+                      const visible = floorDesks.find((d) => d.id === desk.id);
+                      return visible ? (
+                        <DeskTile key={desk.id} desk={desk} scale={scale} onClick={setSelectedDesk} />
+                      ) : (
+                        <div
+                          key={desk.id}
+                          className="rounded-sm opacity-15 bg-secondary border border-border"
+                          style={{ width: Math.max(16, Math.round(24 * scale)), height: Math.max(16, Math.round(24 * scale)) }}
+                        />
+                      );
+                    })}
+                  </div>
 
-              <div className="flex gap-3 mt-4">
-                <div className="flex-1 h-7 rounded-md bg-secondary/60 border border-border flex items-center justify-center text-[9px] text-muted-foreground uppercase tracking-wider">Pantry / Break Area</div>
-                <div className="flex-1 h-7 rounded-md bg-secondary/60 border border-border flex items-center justify-center text-[9px] text-muted-foreground uppercase tracking-wider">Restrooms</div>
-              </div>
-            </div>
+                  <div className="flex gap-3 mt-4">
+                    <div className="flex-1 h-7 rounded-md bg-secondary/60 border border-border flex items-center justify-center text-[9px] text-muted-foreground uppercase tracking-wider">Pantry / Break Area</div>
+                    <div className="flex-1 h-7 rounded-md bg-secondary/60 border border-border flex items-center justify-center text-[9px] text-muted-foreground uppercase tracking-wider">Restrooms</div>
+                  </div>
+                </div>
+              </>
+            )}
           </>
         )}
       </div>
