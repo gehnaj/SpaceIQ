@@ -6,7 +6,7 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  serverExternalPackages: ['jspdf', 'html2canvas'],
+  serverExternalPackages: ['jspdf'],
 }
 
 export default nextConfig
