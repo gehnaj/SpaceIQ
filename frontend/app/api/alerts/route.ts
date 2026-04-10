@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readFile, writeFile } from "fs/promises";
 import path from "path";
+import { getProjectRoot } from "@/lib/paths";
 
-const alertsPath = () => path.join(process.cwd(), "..", "processed", "alerts.json");
+const alertsPath = () => path.join(getProjectRoot(), "processed", "alerts.json");
 
 async function readAlerts(): Promise<unknown[]> {
   try {

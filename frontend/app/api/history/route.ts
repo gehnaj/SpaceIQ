@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { readdir, readFile } from "fs/promises";
 import path from "path";
+import { getProjectRoot } from "@/lib/paths";
 
 export async function GET() {
-  const processedDir = path.join(process.cwd(), "..", "processed");
+  const processedDir = path.join(getProjectRoot(), "processed");
   const allSnapshots: Record<string, unknown>[] = [];
 
   try {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readFile } from "fs/promises";
 import path from "path";
+import { getProjectRoot } from "@/lib/paths";
 
 export async function GET(
   _req: NextRequest,
@@ -8,8 +9,7 @@ export async function GET(
 ) {
   const { locationId } = await params;
   const historyPath = path.join(
-    process.cwd(),
-    "..",
+    getProjectRoot(),
     "processed",
     locationId,
     "history.json"

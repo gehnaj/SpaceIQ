@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readFile, writeFile, mkdir } from "fs/promises";
 import path from "path";
+import { getProjectRoot } from "@/lib/paths";
 
-const settingsPath = () => path.join(process.cwd(), "..", "processed", "settings.json");
+const settingsPath = () => path.join(getProjectRoot(), "processed", "settings.json");
 
 const DEFAULTS = {
   critical: 95,

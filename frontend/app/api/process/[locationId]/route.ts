@@ -3,13 +3,14 @@ import { access, readFile } from "fs/promises";
 import { execSync } from "child_process";
 import path from "path";
 import { officeLocations } from "@/lib/mock-data";
+import { getProjectRoot } from "@/lib/paths";
 
 export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ locationId: string }> }
 ) {
   const { locationId } = await params;
-  const projectRoot = path.join(process.cwd(), "..");
+  const projectRoot = getProjectRoot();
 
   const uploadDir = path.join(projectRoot, "uploads", locationId);
   const inventoryPath = path.join(uploadDir, "inventory.xlsx");

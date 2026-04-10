@@ -29,6 +29,7 @@ RUN mkdir -p uploads processed
 # so process.cwd() + ".." resolves to /app (where Python scripts live)
 WORKDIR /app/frontend
 ENV HOSTNAME=0.0.0.0
+ENV PROJECT_ROOT=/app
 EXPOSE 3000
 # Railway sets PORT dynamically — must use it
 CMD ["sh", "-c", "exec node node_modules/.bin/next start -H 0.0.0.0 -p ${PORT:-3000}"]

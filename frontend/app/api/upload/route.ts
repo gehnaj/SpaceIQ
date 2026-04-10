@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
+import { getProjectRoot } from "@/lib/paths";
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,7 +15,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Save to uploads/{locationId}/{type}.xlsx
-    const uploadDir = path.join(process.cwd(), "..", "uploads", locationId);
+    const uploadDir = path.join(getProjectRoot(), "uploads", locationId);
     await mkdir(uploadDir, { recursive: true });
 
     const fileName = type === "inventory" ? "inventory.xlsx" : "logon.xlsx";
